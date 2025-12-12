@@ -1,0 +1,4 @@
+backend/serviceAccountKey.json
+serviceAccountKey.json
+firebase-functions/node_modules
+*.pdf

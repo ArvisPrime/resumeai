@@ -47,13 +47,22 @@ This system allows you to tailor your resume for any job description using Gemin
 1.  Navigate to `backend/`:
     ```bash
     cd backend
+    ```
+2.  Create and Activate Virtual Environment:
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+3.  **Install Dependencies**:
+    ```bash
     pip install -r requirements.txt
     ```
-2.  Set your Gemini API Key:
+4.  **Set API Keys**:
     ```bash
-    export GOOGLE_API_KEY="your_api_key_here"
+    export GOOGLE_API_KEY="your_gemini_key"
+    export CLOUDCONVERT_API_KEY="your_cloudconvert_key" # Get from cloudconvert.com/dashboard/api/v2
     ```
-3.  Update bucket name in `backend/main.py`:
+5.  Update bucket name in `backend/main.py` if needed.
     *   Find `'storageBucket': 'YOUR_STORAGE_BUCKET_NAME.appspot.com'` and replace with your actual bucket name (from Firebase Console > Storage).
 
 ## 2. Usage
@@ -61,7 +70,8 @@ This system allows you to tailor your resume for any job description using Gemin
 1.  **Start the Worker**:
     ```bash
     cd backend
-    python main.py
+    source venv/bin/activate  # Ensure venv is active
+    python3 main.py
     ```
 2.  **Visit a Job Posting**: Go to LinkedIn or any job site.
 3.  **Clipping**: Click the "Resume AI Clipper" extension icon and click "Tailor & Generate".
