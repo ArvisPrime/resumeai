@@ -3,61 +3,132 @@ import time
 import json
 import requests
 import firebase_admin
+import cloudconvert
 from firebase_admin import credentials, firestore, storage
 from google import genai
 from google.genai import types
 
 # Initialize Firebase Admin
 cred = credentials.Certificate('serviceAccountKey.json')
-firebase_admin.initialize_app(cred, {
-    'storageBucket': 'YOUR_STORAGE_BUCKET_NAME.appspot.com' 
-})
+# Ensure this bucket matches your actual firebase storage bucket
+try:
+    firebase_admin.get_app()
+except ValueError:
+    firebase_admin.initialize_app(cred, {
+        'storageBucket': 'resumeai-6b02f.firebasestorage.app' 
+    })
 
 db = firestore.client()
 bucket = storage.bucket()
 
 # Initialize Gemini
-# Assumes GOOGLE_API_KEY is set in environment variables
-client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
+# Assumes GOOGLE_API_KEY is set
+gemini_client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
+
+# Initialize CloudConvert
+# Assumes CLOUDCONVERT_API_KEY is set
+cloudconvert.configure(api_key=os.environ.get("CLOUDCONVERT_API_KEY"))
 
 def generate_resume_latex(job_description, master_resume_content):
     """
     Uses Gemini to tailor the resume LaTeX based on the job description.
     """
     prompt = f"""
-    You are an expert resume writer. I have a master resume written in LaTeX and a job description.
-    Your task is to rewrite the resume content to better match the job description, while keeping the LaTeX structure valid.
+You are an expert Technical Resume Strategist and a LaTeX Syntax Specialist. You are part of an automated pipeline.
+
+INPUT DATA:
+1. TARGET ROLE:
+{job_description}
+
+2. LATEX TEMPLATE:
+{master_resume_content}
+
+YOUR MISSION:
+Tailor the resume content to align with the Target Role while maintaining 100% syntactically correct LaTeX structure.
+
+STRICT OUTPUT RULES (CRITICAL):
+1. RETURN RAW LATEX ONLY. Do not use Markdown code blocks (```latex). Do not include conversational filler (e.g., "Here is the code").
+2. Start the response immediately with \\documentclass.
+3. End the response immediately with \\end{{document}}.
+
+CONTENT OPTIMIZATION RULES:
+1. KEYWORD MATCHING: Analyze the Job Description for required skills. Pivot existing bullet points to use this exact terminology.
+2. LATEX INTEGRITY: You must escape special LaTeX characters (%, $, &, #).
+"""
     
-    JOB DESCRIPTION:
-    {job_description}
-    
-    MASTER RESUME (LaTeX):
-    {master_resume_content}
-    
-    INSTRUCTIONS:
-    1. tailored based on the job description.
-    2. ONLY return the valid LaTeX code. Do not include markdown formatting like ```latex ... ```.
-    3. Ensure the LaTeX compiles. Do not change packages or essential structure unless necessary.
-    """
-    
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
+    # Using 'gemini-2.0-flash-exp' as requested/latest available
+    response = gemini_client.models.generate_content(
+        model="gemini-2.0-flash-exp",
         contents=[prompt]
     )
     
-    return response.text.strip()
+    cleaned_text = response.text.strip()
+    # Remove markdown code blocks if present
+    if cleaned_text.startswith("```latex"):
+        cleaned_text = cleaned_text[8:]
+    if cleaned_text.startswith("```"):
+        cleaned_text = cleaned_text[3:]
+    if cleaned_text.endswith("```"):
+        cleaned_text = cleaned_text[:-3]
+        
+    print(f"Gemini Output Preview: {cleaned_text[:100]}...")
+    return cleaned_text.strip()
 
 def compile_latex_to_pdf(latex_code):
     """
-    Sends LaTeX code to latexonline.cc to generate a PDF.
+    Uses CloudConvert to compile LaTeX to PDF.
     """
-    url = "https://latexonline.cc/compile?text=" + requests.utils.quote(latex_code)
-    response = requests.get(url) 
+    print("Initiating CloudConvert job...")
     
-    if response.status_code == 200:
-        return response.content
+    # 1. Create a Job with tasks
+    # We define a pipeline: import-string -> convert -> export-url
+    job = cloudconvert.Job.create(payload={
+        "tasks": {
+            "import-my-file": {
+                "operation": "import/raw",
+                "file": latex_code,
+                "filename": "resume.tex"
+            },
+            "convert-my-file": {
+                "operation": "convert",
+                "input": "import-my-file",
+                "output_format": "pdf",
+                "input_format": "tex" 
+            },
+            "export-my-file": {
+                "operation": "export/url",
+                "input": "convert-my-file"
+            }
+        }
+    })
+    
+    job_id = job['id']
+    print(f"CloudConvert Job Created: {job_id}")
+    
+    # 2. Wait for completion
+    job = cloudconvert.Job.wait(id=job_id)
+    
+    # 3. Check status
+    export_task = None
+    for task in job['tasks']:
+        if task['name'] == 'export-my-file':
+            export_task = task
+            break
+            
+    if export_task and export_task['status'] == 'finished':
+        file_url = export_task['result']['files'][0]['url']
+        print(f"PDF Generated at CloudConvert: {file_url}")
+        
+        # Download the file content
+        pdf_response = requests.get(file_url)
+        return pdf_response.content
     else:
-        raise Exception(f"LaTeX compilation failed: {response.text}")
+        # Try to find error message
+        error_msg = "Unknown Error"
+        for task in job['tasks']:
+            if task['status'] == 'error':
+                error_msg = task.get('message', 'Unknown task error')
+        raise Exception(f"CloudConvert failed: {error_msg}")
 
 def upload_to_firebase(pdf_bytes, filename):
     """
@@ -86,12 +157,12 @@ def process_job(doc_snapshot, changes, read_time):
                     print("Generating tailored resume with Gemini...")
                     tailored_latex = generate_resume_latex(data.get('description'), master_resume)
                     
-                    # 3. Compile PDF
-                    print("Compiling PDF...")
+                    # 3. Compile PDF (CloudConvert)
+                    print("Compiling PDF via CloudConvert...")
                     pdf_bytes = compile_latex_to_pdf(tailored_latex)
                     
                     # 4. Upload to Storage
-                    print("Uploading to Storage...")
+                    print("Uploading to Firebase Storage...")
                     filename = f"resumes/{doc.id}.pdf"
                     public_url = upload_to_firebase(pdf_bytes, filename)
                     
@@ -99,7 +170,7 @@ def process_job(doc_snapshot, changes, read_time):
                     db.collection('job_queue').document(doc.id).update({
                         'status': 'Done',
                         'pdfUrl': public_url,
-                        'completedAt': firestore.FieldValue.serverTimestamp()
+                        'completedAt': firestore.SERVER_TIMESTAMP
                     })
                     print(f"Job {doc.id} completed successfully. URL: {public_url}")
                     
@@ -111,13 +182,14 @@ def process_job(doc_snapshot, changes, read_time):
                     })
 
 def main():
-    print("Starting Resume AI Worker...")
+    print("Starting Resume AI Worker (CloudConvert Edition)...")
     
-    # Create the job_queue collection if it doesn't exist (it will require at least one doc strictly speaking, 
-    # but the listener works on the collection reference)
-    col_query = db.collection('job_queue').where('status', '==', 'Pending')
-    
+    if not os.environ.get("CLOUDCONVERT_API_KEY"):
+        print("ERROR: CLOUDCONVERT_API_KEY environment variable is missing.")
+        return
+
     # Watch the collection query
+    col_query = db.collection('job_queue').where('status', '==', 'Pending')
     col_query.on_snapshot(process_job)
     
     print("Listening for new jobs. Press Ctrl+C to stop.")

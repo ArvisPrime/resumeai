@@ -1,11 +1,11 @@
 // Placeholder for the Firebase Cloud Function URL
 // TODO: Replace this with your actual deployed function URL
-const API_URL = "PLACEHOLDER_FUNCTION_URL";
+const API_URL = "https://us-central1-resumeai-6b02f.cloudfunctions.net/submitJob";
 
 document.getElementById('tailorBtn').addEventListener('click', async () => {
     const statusDiv = document.getElementById('status');
     const spinner = document.getElementById('spinner');
-    
+
     if (API_URL === "PLACEHOLDER_FUNCTION_URL") {
         statusDiv.textContent = "Error: API URL not configured in popup.js";
         statusDiv.className = "error";
@@ -18,9 +18,9 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
 
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        
+
         if (!tab) {
-             throw new Error("No active tab found.");
+            throw new Error("No active tab found.");
         }
 
         // Execute script to get body text
@@ -37,7 +37,7 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
         const pageUrl = tab.url;
 
         statusDiv.textContent = "Sending to Resume AI...";
-        
+
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -48,7 +48,7 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
                 description: pageText
             }),
         });
-        
+
         const data = await response.json();
 
         if (!response.ok) {

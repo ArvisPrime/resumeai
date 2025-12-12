@@ -1,0 +1,17 @@
+pdflatex -interaction nonstopmode -recorder -output-directory latex.out /tmp/downloads/tmp_1126/main.tex
+/tmp/downloads/tmp_1126/main.tex:1: error: Undefined control sequence
+      at \documentclassarticle\begindocumentHello\enddocument
+                              ^
+/tmp/downloads/tmp_1126/main.tex:1: error: Undefined control sequence
+      at \documentclassarticle\begindocumentHello\enddocument
+                                                 ^
+/tmp/downloads/tmp_1126/main.tex:1: error: I can't find file `main.aux'
+      at \enddocument ...keatletter \@@input \jobname .aux \fi \@dofilelist \ifdim \f...
+                                                           ^
+    from ...classarticle\begindocumentHello\enddocument
+/tmp/downloads/tmp_1126/main.tex:1: error: Emergency stop: job aborted, file error in nonstop mode
+      at \enddocument ...keatletter \@@input \jobname .aux \fi \@dofilelist \ifdim \f...
+                                                           ^
+    from ...classarticle\begindocumentHello\enddocument
+/tmp/downloads/tmp_1126/main.tex: Fatal error (no output file produced)
+There were errors; /tmp/storage/compilation_1087/output.pdf not updated
