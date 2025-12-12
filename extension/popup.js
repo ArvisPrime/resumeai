@@ -1,20 +1,20 @@
-// Placeholder for the Firebase Cloud Function URL
-// TODO: Replace this with your actual deployed function URL
-const API_URL = "https://us-central1-resumeai-6b02f.cloudfunctions.net/submitJob";
+// Firebase Function URL (Production)
+// TODO: Ensure this matches your deployed function name (clipJob)
+const API_URL = "https://us-central1-resumeai-6b02f.cloudfunctions.net/clipJob";
 
 document.getElementById('tailorBtn').addEventListener('click', async () => {
     const statusDiv = document.getElementById('status');
     const spinner = document.getElementById('spinner');
+    const btnText = document.getElementById('btnText');
+    const btn = document.getElementById('tailorBtn');
 
-    if (API_URL === "PLACEHOLDER_FUNCTION_URL") {
-        statusDiv.textContent = "Error: API URL not configured in popup.js";
-        statusDiv.className = "error";
-        return;
-    }
-
-    statusDiv.textContent = "Scraping page...";
-    statusDiv.className = "";
-    spinner.style.display = "block";
+    // Reset UI
+    statusDiv.className = "processing";
+    statusDiv.textContent = "Analyzing page structure...";
+    statusDiv.classList.remove('hidden');
+    spinner.classList.remove('hidden');
+    btnText.textContent = "Processing...";
+    btn.disabled = true;
 
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -23,10 +23,33 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
             throw new Error("No active tab found.");
         }
 
-        // Execute script to get body text
+        // Smart Scraping: Inject cleaner script
         const results = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            func: () => document.body.innerText,
+            func: () => {
+                // Clone body to avoid modifying the actual page visible to user
+                const clone = document.body.cloneNode(true);
+
+                // Remove noise elements
+                const selectorsToRemove = [
+                    'nav', 'header', 'footer', 'script', 'style', 'noscript', 'iframe',
+                    '[role="navigation"]', '.nav', '.header', '.footer', '.menu', '#menu',
+                    '.cookie-notice', '.advertisement', '.ad', '.sidebar'
+                ];
+
+                selectorsToRemove.forEach(sel => {
+                    const elements = clone.querySelectorAll(sel);
+                    elements.forEach(el => el.remove());
+                });
+
+                // Get clean text
+                let text = clone.innerText || "";
+
+                // Collapse whitespace
+                text = text.replace(/\s+/g, ' ').trim();
+
+                return text;
+            },
         });
 
         if (!results || !results[0] || !results[0].result) {
@@ -36,8 +59,14 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
         const pageText = results[0].result;
         const pageUrl = tab.url;
 
-        statusDiv.textContent = "Sending to Resume AI...";
+        // Validation: payload size
+        if (pageText.length < 100) {
+            throw new Error("Job description is too short (< 100 chars). detected. Please highlight the text or try another page.");
+        }
 
+        statusDiv.textContent = `Sending ${pageText.length} chars to ResumeForge...`;
+
+        // Send to Backend
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -49,20 +78,26 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
             }),
         });
 
-        const data = await response.json();
-
         if (!response.ok) {
-            throw new Error(data.error || "Server error");
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Server Error (${response.status})`);
         }
 
-        statusDiv.textContent = `Success! Job ID: ${data.result}`;
+        const data = await response.json();
+
+        statusDiv.textContent = "Success! Job queued.";
         statusDiv.className = "success";
+
+        setTimeout(() => {
+            window.close();
+        }, 2000);
 
     } catch (error) {
         console.error(error);
-        statusDiv.textContent = "Error: " + error.message;
+        statusDiv.textContent = error.message;
         statusDiv.className = "error";
-    } finally {
-        spinner.style.display = "none";
+        btnText.textContent = "Try Again";
+        btn.disabled = false;
+        spinner.classList.add('hidden');
     }
 });
