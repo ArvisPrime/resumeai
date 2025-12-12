@@ -1,82 +1,58 @@
-# Serverless Resume Automation Suite
+# ResumeForge (Node.js Edition)
 
-This system allows you to tailor your resume for any job description using Gemini and Firebase.
+A serverless, event-driven resume automation suite built on **Firebase Cloud Functions (2nd Gen)** and **Google Gemini 2.0**.
 
-## 1. Setup
+## 🚀 Features
+*   **Smart Scraper**: Chrome Extension cleans up ads/navbars before sending job data.
+*   **Event-Driven**: Asynchronous processing using Firestore triggers.
+*   **AI-Powered**: Gemini 2.0 Flash tailors your resume content.
+*   **PDF Generation**: CloudConvert engine for perfect LaTeX compilation.
+*   **Secure**: Zero hardcoded secrets (uses Firebase Secret Manager).
+
+## 1. Setup & Deployment
 
 ### Prerequisites
-*   Node.js & npm
-*   Python 3.9+
+*   Node.js 20+
 *   Firebase CLI (`npm install -g firebase-tools`)
-*   Google Cloud Project with Gemini API enabled
+*   Google Cloud Project (Blaze Plan required for Gen 2 Functions)
 
-### A. Firebase Setup
-1.  **Create a Project**: Go to [console.firebase.google.com](https://console.firebase.google.com/) and create a new project.
-2.  **Enable Firestore**: Create a Firestore database (Start in Test mode for development).
-3.  **Enable Storage**: Set up Firebase Storage (Start in Test mode).
-4.  **Service Account**:
-    *   Go to Project Settings > Service accounts.
-    *   Click "Generate new private key".
-    *   Rename the downloaded file to `serviceAccountKey.json` and place it in the `backend/` directory.
+### A. API Keys
+Ensure you have:
+1.  **Google Gemini API Key** (from AI Studio)
+2.  **CloudConvert API Key** (from CloudConvert Dashboard)
 
-### B. Bridge (Firebase Functions)
-1.  Navigate to `firebase-functions/`:
+### B. Deploy Backend
+1.  Navigate to the functions directory:
     ```bash
     cd firebase-functions
-    npm install
     ```
-2.  Login and Deploy:
+2.  Set your secrets (You will be prompted to paste values):
     ```bash
-    firebase login
-    firebase init functions # Select your project, choose 'JavaScript', 'No' to ESLint, 'Yes' to dependencies
-    # If prompted to overwrite index.js or package.json, choose NO.
+    firebase functions:secrets:set GEMINI_API_KEY
+    firebase functions:secrets:set CLOUDCONVERT_API_KEY
+    ```
+3.  Deploy the functions:
+    ```bash
     firebase deploy --only functions
     ```
-3.  **Copy the Function URL**: The output will contain a URL (e.g., `https://us-central1-YOUR-PROJECT.cloudfunctions.net/submitJob`).
+    *Note: If prompted to install dependencies or enable APIs, say Yes.*
 
-### C. Frontend (Chrome Extension)
+### C. Extension Setup
 1.  Open `extension/popup.js`.
-2.  Replace `const API_URL = "PLACEHOLDER_FUNCTION_URL";` with your copied Function URL.
+2.  Ensure `API_URL` matches your deployed `clipJob` function URL (e.g., `https://clipjob-xxxx-uc.a.run.app`).
+    *   *Tip: You can find this URL in the Firebase Console or deployment output.*
 3.  Load into Chrome:
-    *   Go to `chrome://extensions/`.
-    *   Enable "Developer mode" (top right).
-    *   Click "Load unpacked".
-    *   Select the `extension/` directory.
-
-### D. Backend (Python Worker)
-1.  Navigate to `backend/`:
-    ```bash
-    cd backend
-    ```
-2.  Create and Activate Virtual Environment:
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-3.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-4.  **Set API Keys**:
-    ```bash
-    export GOOGLE_API_KEY="your_gemini_key"
-    export CLOUDCONVERT_API_KEY="your_cloudconvert_key" # Get from cloudconvert.com/dashboard/api/v2
-    ```
-5.  Update bucket name in `backend/main.py` if needed.
-    *   Find `'storageBucket': 'YOUR_STORAGE_BUCKET_NAME.appspot.com'` and replace with your actual bucket name (from Firebase Console > Storage).
+    *   `chrome://extensions/` > Enable Developer Mode > **Load Unpacked**.
+    *   Select the `extension/` folder.
 
 ## 2. Usage
-
-1.  **Start the Worker**:
-    ```bash
-    cd backend
-    source venv/bin/activate  # Ensure venv is active
-    python3 main.py
-    ```
-2.  **Visit a Job Posting**: Go to LinkedIn or any job site.
-3.  **Clipping**: Click the "Resume AI Clipper" extension icon and click "Tailor & Generate".
-4.  **Wait**: Watch the Python terminal. It will detect the job, call Gemini, compile the PDF, and upload it.
-5.  **Result**: The terminal will print a public URL to your tailored PDF!
+1.  **Find a Job**: Navigate to any job posting (LinkedIn, etc.).
+2.  **Clip It**: Click the **ResumeForge** extension icon.
+3.  **Wait**:
+    *   The extension sends the job to the queue.
+    *   The backend processes it (approx. 20-40 seconds).
+    *   Check your **Firebase Console > Storage** for the generated PDF.
+    *   *Upcoming Feature: The extension will notify you when done.*
 
 ## 3. Configuration
-*   **Master Resume**: Edit `backend/master_resume.tex` to put your actual resume content. Ensure you keep the LaTeX structure valid.
+*   **Master Resume**: Edit `firebase-functions/functions/master_resume.tex` to update your core resume content. Redeploy after changes.
