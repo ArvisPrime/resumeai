@@ -1,6 +1,6 @@
 // Firebase Function URL (Production)
 // TODO: Ensure this matches your deployed function name (clipJob)
-const API_URL = "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/clipJob";
+const API_URL = "https://clipjob-YOUR_FUNCTION_URL";
 
 document.getElementById('tailorBtn').addEventListener('click', async () => {
     const statusDiv = document.getElementById('status');
