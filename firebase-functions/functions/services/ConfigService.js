@@ -9,18 +9,22 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 let cachedConfig = null;
 let cacheTimestamp = 0;
 
+let SECRETS_CONFIG = {};
+try {
+    SECRETS_CONFIG = require('./secrets_config');
+} catch (e) {
+    console.info("Using empty SECRETS_CONFIG (secrets_config.js not found)");
+}
+
 /**
  * Default configuration (fallback if Firestore is unavailable)
+ * This uses placeholders in the public repo, but your local setup
+ * will use the values defined in secrets_config.js.
  */
 const DEFAULT_CONFIG = {
     geminiModel: "gemini-3-flash-preview",
     geminiApiVersion: "v1beta",
-    projectId: "YOUR_PROJECT_ID",
-    region: "us-central1",
-    bucketName: "YOUR_PROJECT_ID.firebasestorage.app",
-    endpoints: {
-        clipJob: "https://clipjob-YOUR_FUNCTION_URL"
-    }
+    ...SECRETS_CONFIG
 };
 
 class ConfigService {

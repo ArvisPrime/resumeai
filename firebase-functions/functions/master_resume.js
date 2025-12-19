@@ -3,7 +3,7 @@
  * This file is self-contained and uses String.raw to safely embed LaTeX.
  */
 
-const MASTER_RESUME = String.raw`\documentclass[letterpaper,10pt]{article}
+let MASTER_RESUME_CONTENT = String.raw`\documentclass[letterpaper,10pt]{article}
 
 \usepackage{latexsym}
 \usepackage[empty]{fullpage}
@@ -86,20 +86,20 @@ const MASTER_RESUME = String.raw`\documentclass[letterpaper,10pt]{article}
 
 %----------HEADER----------
 \begin{center}
-    \textbf{\Huge \scshape YOUR_NAME} \\ \vspace{1pt}
-    \small YOUR_PHONE $|$ \href{mailto:YOUR_EMAIL}{\underline{YOUR_EMAIL}} $|$ 
-    \href{https://linkedin.com/in/andreudegbe}{\underline{linkedin.com/in/andreudegbe}}
+    \textbf{\Huge \scshape YOUR NAME} \\ \vspace{1pt}
+    \small 000-000-0000 $|$ \href{mailto:email@example.com}{\underline{email@example.com}} $|$ 
+    \href{https://linkedin.com/in/yourprofile}{\underline{linkedin.com/in/yourprofile}}
 \end{center}
 
 %----------TITLE----------
 \begin{center}
-    \textbf{\large SENIOR TECHNICAL PRODUCT MANAGER $|$ SALES ENABLEMENT \& PLATFORM STRATEGY}
+    \textbf{\large YOUR TARGET JOB TITLE $|$ KEY SKILLS}
 \end{center}
 
 
 %-----------SUMMARY-----------
 \section{Summary}
-  \small{Proven Product Leader with 10+ years bridging strategic vision and technical execution across enterprise platforms. Expert in orchestrating cross-functional teams to deliver scalable solutions that drive measurable business outcomes. Specialized in end-to-end platform transformation and translating complex architectures into compelling product narratives, reducing time-to-market by 65\% and equipping sales teams with stable, high-performance demo environments that accelerated revenue by \$1.2M.}
+  \small{Brief professional summary highlighting your key achievements and core competencies. This section should be tailored based on the target role.}
 
 
 %-----------CORE COMPETENCIES-----------
@@ -117,42 +117,20 @@ const MASTER_RESUME = String.raw`\documentclass[letterpaper,10pt]{article}
   \resumeSubHeadingListStart
 
     \resumeSubheading
-      {Company A}{Jan 2023 -- Present}
-      {Senior Technical Product Manager -- AI Automation \& Platform Strategist}{}
+      {Company Name}{Jan 2000 -- Present}
+      {Job Title -- Core Focus}{}
       \resumeItemListStart
-        \resumeItem{\textbf{Sales Enablement \& Revenue:} Accelerated sales pipeline by \$1.2M by integrating AI analytics with Salesforce, providing sales engineers with real-time "killer feature" data points that improved lead conversion rates by 28\%.}
-        \resumeItem{\textbf{Demo Environment Stability:} Stabilized product demo environments by implementing AI-driven threat detection, ensuring 99.9\% availability for critical client presentations and reducing friction during GTM launches.}
-        \resumeItem{\textbf{Storytelling \& Communication:} Presented technical progress monthly to C-level executives, translating complex AI automation concepts into actionable business insights and strategic recommendations that resonated with non-technical stakeholders.}
-        \resumeItem{\textbf{Cross-Functional Orchestration:} Orchestrated alignment across 20+ engineers and 4 specialized teams (AI/ML, Security, DevOps, Platform) to deliver scalable solutions, ensuring a unified "better together" product story.}
-        \resumeItem{\textbf{Governance \& Standards:} Established governance for product simulation environments, ensuring that sales and field teams had access to consistent, updated, and reliable datasets for client demonstrations.}
-        \resumeItem{\textbf{End-to-End User Journey:} Automated 70\% of critical workflows by integrating Kore.ai with existing systems, enhancing the user experience and enabling \$850K in annual operational savings.}
+        \resumeItem{\textbf{Key Achievement 1:} Describe your role and impact. Use metrics where possible (e.g., increased revenue by X\%, reduced latency by Yms).}
+        \resumeItem{\textbf{Key Achievement 2:} Describe another major accomplishment, focusing on technical skills and leadership.}
+        \resumeItem{\textbf{Key Achievement 3:} Highlight cross-functional collaboration or strategic contributions.}
       \resumeItemListEnd
 
     \resumeSubheading
-      {Company B}{June 2021 -- Jan 2023}
-      {Technical Product Manager -- Cloud and Audio Platforms Orchestration}{}
+      {Previous Company}{June 1900 -- Jan 2000}
+      {Previous Job Title -- Engineering/Product Focus}{}
       \resumeItemListStart
-        \resumeItem{\textbf{Client Experience:} Increased client satisfaction (NPS) by 60\% through a zero-disruption migration strategy for 200+ enterprise accounts, ensuring the product experience remained seamless and reliable for end-users.}
-        \resumeItem{\textbf{Reliability \& Observability:} Improved incident response by 40\% via real-time observability and automated monitoring dashboards, establishing the stability required for high-stakes customer demonstrations.}
-        \resumeItem{\textbf{Modular Delivery:} Accelerated feature delivery by 45\% using modular architecture, enabling rapid deployment of tailored solutions across HR, Legal, and Government verticals.}
-        \resumeItem{\textbf{Infrastructure Optimization:} Achieved 99.99\% uptime while reducing vendor costs by 30\% through strategic AWS infrastructure implementation, ensuring a robust platform foundation.}
-      \resumeItemListEnd
-
-    \resumeSubheading
-      {Company C Ltd}{Aug 2018 -- June 2021}
-      {Product Manager -- Digital Platform Strategy}{}
-      \resumeItemListStart
-        \resumeItem{\textbf{User Journey Optimization:} Boosted partner sales by 27\% within 90 days by automating personalized user journeys based on behavioral segmentation, effectively demonstrating the right value to the right user at the right time.}
-        \resumeItem{\textbf{Data-Driven Engagement:} Increased user retention by 34\% through data-driven loyalty experiences and hyper-targeted promotions, utilizing real-time analytics to refine the product story.}
-        \resumeItem{\textbf{Influence Without Authority:} Managed a team of 12 from ideation through successful launch, ensuring on-time delivery under a \$1.2M budget through meticulous planning and coordination.}
-      \resumeItemListEnd
-
-    \resumeSubheading
-      {Company D}{Dec 2014 -- Aug 2018}
-      {Software Engineer -- Enterprise Logistics Platforms}{}
-      \resumeItemListStart
-        \resumeItem{Reduced transit delays by 35\% through predictive scheduling and GPS-based automation, creating tangible value stories for logistics operations.}
-        \resumeItem{Enhanced operational efficiency via enterprise application refactoring and CI/CD pipeline automation, building the technical rigor required for scalable product growth.}
+        \resumeItem{\textbf{Achievement 1:} Detail your contributions to the product or platform architecture.}
+        \resumeItem{\textbf{Achievement 2:} Explain how you improved reliability, observability, or performance.}
       \resumeItemListEnd
 
   \resumeSubHeadingListEnd
@@ -162,24 +140,17 @@ const MASTER_RESUME = String.raw`\documentclass[letterpaper,10pt]{article}
 \section{Strategic Projects}
     \resumeSubHeadingListStart
       \resumeProjectHeading
-          {\textbf{AI-Powered User Behavior Prediction Platform} $|$ \emph{Company A}}{2025}
+          {\textbf{Project Name} $|$ \emph{Associated Company/Organization}}{Year}
           \resumeItemListStart
-            \resumeItem{\textbf{Impact:} Enhanced sales forecasting, 17\% reduction in customer churn.}
-            \resumeItem{\textbf{Detail:} Led cross-functional initiative building secure data pipelines where AI/ML models delivered actionable insights to Salesforce, directly supporting proactive retention strategies and predictive sales intelligence.}
+            \resumeItem{\textbf{Impact:} Quantifiable result or major outcome of the project.}
+            \resumeItem{\textbf{Detail:} Briefly explain the technical stack, your specific contributions, and the problem solved.}
           \resumeItemListEnd
           
       \resumeProjectHeading
-          {\textbf{Secure Client-Facing API Portal Launch} $|$ \emph{Company A}}{2024}
+          {\textbf{Another Strategic Project} $|$ \emph{Platform/Context}}{Year}
           \resumeItemListStart
-            \resumeItem{\textbf{Impact:} HIPAA-compliant automation, 65\% reduction in attack surface.}
-            \resumeItem{\textbf{Detail:} Designed and implemented comprehensive API security architecture, establishing automated authentication standards that improved API response times by 47\%.}
-          \resumeItemListEnd
-          
-      \resumeProjectHeading
-          {\textbf{Enterprise API Ecosystem Automation} $|$ \emph{Company A}}{2023}
-          \resumeItemListStart
-            \resumeItem{\textbf{Impact:} 70\% reduction in onboarding time, enhanced Developer Experience (DevX).}
-            \resumeItem{\textbf{Detail:} Led design and rollout of a robust API Management Platform with a Developer Portal, supporting internal/external developers and establishing standards that improved the overall product ecosystem.}
+            \resumeItem{\textbf{Impact:} 00\% improvement in X, or \$00M saved/earned.}
+            \resumeItem{\textbf{Detail:} Detailed breakdown of the architecture, security, or leadership involved.}
           \resumeItemListEnd
     \resumeSubHeadingListEnd
 
@@ -188,23 +159,18 @@ const MASTER_RESUME = String.raw`\documentclass[letterpaper,10pt]{article}
 \section{Education \& Certifications}
   \resumeSubHeadingListStart
     \resumeSubheading
-      {University C}{Expected 2026}
-      {Masters of Science in Data Science}{}
+      {University Name}{Year Range}
+      {Degree Name}{}
     \resumeSubheading
-      {University B}{2022}
-      {Masters of Science in Human Computer Interaction}{}
-    \resumeSubheading
-      {University A}{2014}
-      {Bachelor of Science in Computer Science}{}
-    \resumeSubheading
-      {}{}{}{}
+      {Another Institution}{Year}
+      {Relevant Degree or Certification}{}
   \resumeSubHeadingListEnd
 
   \vspace{-12pt}
   
   \begin{itemize}[leftmargin=0.15in, label={}]
     \small{\item{
-     \textbf{Certifications}{: Certified Scrum Product Owner (CSPO), Certified Scrum Master (CSM), SAFe Scrum Master (SSM), Certified Information Security Manager (CISM), AWS Solutions Architect Associate, Microsoft Azure Solutions Architect Expert}
+     \textbf{Certifications}{: List your relevant industry certifications here (e.g., AWS, Azure, Scrum, Security).}
     }}
  \end{itemize}
 
@@ -212,4 +178,13 @@ const MASTER_RESUME = String.raw`\documentclass[letterpaper,10pt]{article}
 \end{document}
 `;
 
-module.exports = MASTER_RESUME;
+try {
+  const PERSONAL_RESUME = require('./secrets_resume');
+  if (PERSONAL_RESUME) {
+    MASTER_RESUME_CONTENT = PERSONAL_RESUME;
+  }
+} catch (e) {
+  console.info("Using default LaTeX template (secrets_resume.js not found)");
+}
+
+module.exports = MASTER_RESUME_CONTENT;

@@ -7,4 +7,12 @@ export const firebaseConfig = {
     messagingSenderId: "YOUR_MESSAGING_SENDER_ID"
 };
 
-export const siteKey = "YOUR_RECAPTCHA_SITE_KEY";
+export const googleClientId = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+
+export const appConfig = {
+    projectId: "YOUR_PROJECT_ID",
+    region: "YOUR_REGION",
+    endpoints: {
+        clipJob: "YOUR_CLIP_JOB_ENDPOINT"
+    }
+};

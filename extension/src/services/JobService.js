@@ -3,6 +3,7 @@
  */
 
 import { auth, db } from '../firebase-config';
+import { appConfig } from '../secrets';
 import { collection, query, where, orderBy, onSnapshot, limit, doc, getDoc, setDoc, serverTimestamp, addDoc, deleteDoc, updateDoc, getDocs } from "firebase/firestore";
 
 // Config Cache
@@ -20,23 +21,11 @@ async function getConfig() {
             cachedConfig = configDoc.data();
         } else {
             // Fallback defaults
-            cachedConfig = {
-                projectId: "YOUR_PROJECT_ID",
-                region: "us-central1",
-                endpoints: {
-                    clipJob: "https://clipjob-YOUR_FUNCTION_URL"
-                }
-            };
+            cachedConfig = appConfig;
         }
     } catch (error) {
         console.error("Failed to fetch config:", error);
-        cachedConfig = {
-            projectId: "YOUR_PROJECT_ID",
-            region: "us-central1",
-            endpoints: {
-                clipJob: "https://clipjob-YOUR_FUNCTION_URL"
-            }
-        };
+        cachedConfig = appConfig;
     }
 
     return cachedConfig;

@@ -1,2 +1,3 @@
 node_modules/
-*.local
+secrets_resume.js
+services/secrets_config.js
