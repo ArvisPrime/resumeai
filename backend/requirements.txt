@@ -1,4 +1,0 @@
-firebase-admin
-google-genai
-requests
-cloudconvert

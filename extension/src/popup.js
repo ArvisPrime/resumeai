@@ -1,12 +1,59 @@
-// Firebase Function URL (Production)
-// TODO: Ensure this matches your deployed function name (clipJob)
-const API_URL = "https://clipjob-YOUR_FUNCTION_URL";
+/**
+ * Popup - Refactored to use JobService
+ */
 
-document.getElementById('tailorBtn').addEventListener('click', async () => {
+import { auth } from './firebase-config';
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import JobService from './services/JobService';
+
+// DOM Elements
+const authContainer = document.getElementById('authContainer');
+const appContainer = document.getElementById('appContainer');
+const openAuthBtn = document.getElementById('openAuthBtn');
+
+// Auth State Listener
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        authContainer.classList.add('hidden');
+        appContainer.classList.remove('hidden');
+    } else {
+        authContainer.classList.remove('hidden');
+        appContainer.classList.add('hidden');
+    }
+});
+
+// Auth Actions
+if (openAuthBtn) {
+    openAuthBtn.addEventListener('click', () => {
+        chrome.tabs.create({ url: 'dashboard.html' });
+    });
+}
+
+signOutAppBtn.addEventListener('click', () => {
+    signOut(auth);
+});
+
+openDashboardBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: 'dashboard.html' });
+});
+
+// ============================================================================
+// CLIPPING LOGIC (via JobService)
+// ============================================================================
+
+tailorBtn.addEventListener('click', async () => {
     const statusDiv = document.getElementById('status');
     const spinner = document.getElementById('spinner');
     const btnText = document.getElementById('btnText');
     const btn = document.getElementById('tailorBtn');
+
+    // Validation
+    if (!auth.currentUser) {
+        statusDiv.textContent = "Error: Not authenticated.";
+        statusDiv.className = "error";
+        statusDiv.classList.remove('hidden');
+        return;
+    }
 
     // Reset UI
     statusDiv.className = "processing";
@@ -23,14 +70,12 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
             throw new Error("No active tab found.");
         }
 
-        // Smart Scraping: Inject cleaner script
+        // Smart Scraping
         const results = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
-                // Clone body to avoid modifying the actual page visible to user
                 const clone = document.body.cloneNode(true);
 
-                // Remove noise elements
                 const selectorsToRemove = [
                     'nav', 'header', 'footer', 'script', 'style', 'noscript', 'iframe',
                     '[role="navigation"]', '.nav', '.header', '.footer', '.menu', '#menu',
@@ -38,17 +83,11 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
                 ];
 
                 selectorsToRemove.forEach(sel => {
-                    const elements = clone.querySelectorAll(sel);
-                    elements.forEach(el => el.remove());
+                    clone.querySelectorAll(sel).forEach(el => el.remove());
                 });
 
-                // Get clean text
                 let text = clone.innerText || "";
-
-                // Collapse whitespace
-                text = text.replace(/\s+/g, ' ').trim();
-
-                return text;
+                return text.replace(/\s+/g, ' ').trim();
             },
         });
 
@@ -59,38 +98,19 @@ document.getElementById('tailorBtn').addEventListener('click', async () => {
         const pageText = results[0].result;
         const pageUrl = tab.url;
 
-        // Validation: payload size
         if (pageText.length < 100) {
-            throw new Error("Job description is too short (< 100 chars). detected. Please highlight the text or try another page.");
+            throw new Error("Job description is too short (< 100 chars).");
         }
 
         statusDiv.textContent = `Sending ${pageText.length} chars to ResumeForge...`;
 
-        // Send to Backend
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                url: pageUrl,
-                description: pageText
-            }),
-        });
+        // Use JobService
+        const result = await JobService.submitJob(pageUrl, pageText);
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Server Error (${response.status})`);
-        }
-
-        const data = await response.json();
-
-        statusDiv.textContent = "Success! Job queued.";
+        statusDiv.textContent = result.status === "Cached"
+            ? "Success! Found cached result."
+            : "Success! Job queued.";
         statusDiv.className = "success";
-
-        setTimeout(() => {
-            window.close();
-        }, 2000);
 
     } catch (error) {
         console.error(error);

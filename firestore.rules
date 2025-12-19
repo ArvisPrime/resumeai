@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /job_queue/{docId} {
+      // Allow users to read only their own jobs
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || resource == null);
+      
+      // Writes are handled by Admin SDK (Cloud Functions), so we can lock this down.
+      // However, if we ever wanted client-side writes:
+      // allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}

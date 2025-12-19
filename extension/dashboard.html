@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResumeForge Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --bg-color: #f9fafb;
+            --card-bg: #ffffff;
+            --text-main: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+
+            /* Status Colors */
+            --success-bg: #d1fae5;
+            --success-text: #065f46;
+            --processing-bg: #dbeafe;
+            --processing-text: #1e40af;
+            --error-bg: #fee2e2;
+            --error-text: #991b1b;
+            --queued-bg: #fef3c7;
+            --queued-text: #92400e;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 1.125rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            background: white;
+            color: var(--text-main);
+            transition: all 0.1s;
+        }
+
+        .btn:hover {
+            background: #f3f4f6;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border-color: transparent;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        /* Control Bar */
+        .control-bar {
+            background: white;
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        select {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.875rem;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        /* Table Container */
+        .table-container {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 800px;
+            /* Ensure horizontal scroll on small screens */
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: #f9fafb;
+            z-index: 10;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 24px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+            font-size: 0.875rem;
+        }
+
+        tr:hover {
+            background: #fdfdfd;
+        }
+
+        /* Column Styles */
+        .col-status {
+            width: 100px;
+        }
+
+        .col-company {
+            width: 15%;
+            font-weight: 600;
+        }
+
+        .col-job {
+            width: 30%;
+        }
+
+        .col-score {
+            width: 100px;
+        }
+
+        .col-date {
+            width: 150px;
+            color: var(--text-secondary);
+        }
+
+        .col-actions {
+            text-align: right;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-done {
+            background: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        .badge-processing {
+            background: var(--processing-bg);
+            color: var(--processing-text);
+        }
+
+        .badge-queued {
+            background: var(--queued-bg);
+            color: var(--queued-text);
+        }
+
+        .badge-error {
+            background: var(--error-bg);
+            color: var(--error-text);
+        }
+
+        .score-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: #f3f4f6;
+            padding: 4px;
+            border-radius: 8px;
+            margin-right: 16px;
+        }
+
+        .tab {
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: white;
+            color: var(--text-main);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Profile Section */
+        #profileSection {
+            padding: 24px;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .profile-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .profile-card h2 {
+            margin-top: 0;
+            font-size: 1.25rem;
+            margin-bottom: 8px;
+        }
+
+        .profile-card p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 24px;
+        }
+
+        .textarea-container {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 400px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+
+        .save-status {
+            font-size: 0.875rem;
+            margin-left: 12px;
+        }
+
+        .save-status.success {
+            color: #059669;
+        }
+
+        .save-status.error {
+            color: #dc2626;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        #loading {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="logo">
+            📄 ResumeForge
+        </div>
+        <div id="headerActions" class="user-actions hidden">
+            <div class="tabs">
+                <div id="tabJobs" class="tab active">Jobs</div>
+                <div id="tabProfile" class="tab">Profile</div>
+            </div>
+            <span id="userEmail" style="font-size: 0.875rem;"></span>
+            <button id="signOutBtn" class="btn">Sign Out</button>
+        </div>
+    </nav>
+
+    <!-- Control Bar -->
+    <div id="controlBar" class="control-bar hidden">
+        <select id="statusFilter">
+            <option value="All">All Status</option>
+            <option value="Done">Completed</option>
+            <option value="Processing">Processing</option>
+            <option value="Error">Errors</option>
+        </select>
+
+        <select id="sortOrder">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="score_desc">Highest Score</option>
+            <option value="score_asc">Lowest Score</option>
+        </select>
+    </div>
+
+    <!-- Table Content -->
+    <div id="jobsSection" class="table-container">
+        <div id="loading">Loading...</div>
+
+        <table id="jobsTable" class="hidden">
+            <thead>
+                <tr>
+                    <th class="col-status">Status</th>
+                    <th class="col-company">Company</th>
+                    <th class="col-job">Job Title</th>
+                    <th class="col-score">ATS Score</th>
+                    <th class="col-date">Date</th>
+                    <th class="col-actions">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="jobListBody">
+                <!-- Rows injected here -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Profile Content -->
+    <div id="profileSection" class="hidden">
+        <div class="profile-card">
+            <h2>Master Resume Template</h2>
+            <p>This is your base resume in LaTeX format. ResumeForge will use this as a template to generate tailored
+                versions for each job you clip.</p>
+
+            <div class="textarea-container">
+                <label for="masterResumeRaw">LaTeX Source</label>
+                <textarea id="masterResumeRaw" placeholder="\documentclass..."></textarea>
+            </div>
+
+            <div style="display: flex; align-items: center;">
+                <button id="saveProfileBtn" class="btn btn-primary">Save Template</button>
+                <span id="saveStatus" class="save-status"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="dist/dashboard.bundle.js"></script>
+</body>
+
+</html>

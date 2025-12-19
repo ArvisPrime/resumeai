@@ -1,70 +1,123 @@
+/**
+ * ResumeForge - Cloud Functions
+ * Refactored to use modular service architecture
+ */
+
 const { onRequest } = require("firebase-functions/v2/https");
 const { onTaskDispatched } = require("firebase-functions/v2/tasks");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const CloudConvert = require("cloudconvert");
 const crypto = require("crypto");
-const { CloudTasksClient } = require("@google-cloud/tasks");
+
+// Services
+const { AIService, CloudConvertService, StorageService, ConfigService } = require("./services");
 const MASTER_RESUME = require("./master_resume");
 
+// Initialize Firebase
 admin.initializeApp();
 const db = admin.firestore();
+const storage = admin.storage();
 
 // Secrets
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 const cloudConvertApiKey = defineSecret("CLOUDCONVERT_API_KEY");
 
-// Configuration
-const PROJECT_ID = "YOUR_PROJECT_ID"; // TODO: Should fetch dynamically if possible
-const LOCATION = "us-central1";
-const QUEUE = "resume-worker-queue";
+// Configuration loaded from Firestore via ConfigService
+// Defaults are used if Firestore is unavailable
+const configService = new ConfigService(db);
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
 /**
- * 1. GATEKEEPER: clipJob
- * - Validates App Check (Security)
- * - Checks MD5 Cache (Optimization)
- * - Dispatches Cloud Task (Scale)
+ * Standardized API Response
  */
-exports.clipJob = onRequest({ cors: true }, async (req, res) => {
-    // 1. Security: App Check
-    // if (!req.header("X-Firebase-AppCheck")) {
-    //    return res.status(401).json({ error: "Unauthorized. Missing App Check Token." });
-    // }
-    // Note: We'll uncomment strict enforcement after Phase 4 (Frontend Update) to avoid breaking dev flow.
+function apiResponse(res, status, data) {
+    const success = status >= 200 && status < 300;
+    return res.status(status).json({ success, ...data });
+}
 
-    if (req.method !== "POST") {
-        return res.status(405).send("Method Not Allowed");
+/**
+ * Authentication Middleware
+ * @returns {Promise<{userId: string, userEmail: string}>}
+ */
+async function authenticateRequest(req) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw { status: 401, code: "AUTH_MISSING", message: "No token provided" };
     }
 
-    const { url, description } = req.body;
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        return { userId: decodedToken.uid, userEmail: decodedToken.email };
+    } catch (error) {
+        throw { status: 403, code: "AUTH_INVALID", message: "Invalid token" };
+    }
+}
 
-    if (!url || !description || description.length < 100) {
-        return res.status(400).json({ error: "Invalid payload." });
+/**
+ * Sanitize Filename
+ */
+function sanitizeFilename(str) {
+    if (!str) return "Unknown";
+    return str.replace(/[^a-zA-Z0-9]/g, "").trim();
+}
+
+/**
+ * Extract First Name from LaTeX
+ */
+function extractFirstName(latex) {
+    const nameMatch = latex.match(/\\textbf\{\\Huge\s*\\scshape\s*([A-Za-z]+)\s+.*?\}/);
+    return nameMatch && nameMatch[1] ? nameMatch[1] : "User";
+}
+
+// ============================================================================
+// HTTP ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /clipJob
+ * Gatekeeper: Validates, caches, and queues jobs
+ */
+exports.clipJob = onRequest({ cors: true }, async (req, res) => {
+    if (req.method !== "POST") {
+        return apiResponse(res, 405, { code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
     }
 
     try {
-        // 2. Optimization: MD5 Cache Check
-        const contentHash = crypto.createHash('md5').update(description).digest('hex');
+        // Authenticate
+        const { userId, userEmail } = await authenticateRequest(req);
 
+        // Validate Payload
+        const { url, description } = req.body;
+        if (!url || !description || description.length < 100) {
+            return apiResponse(res, 400, { code: "INVALID_PAYLOAD", message: "Invalid payload" });
+        }
+
+        // MD5 Cache Check
+        const contentHash = crypto.createHash('md5').update(description + url).digest('hex');
         const cacheQuery = await db.collection("job_queue")
+            .where("userId", "==", userId)
             .where("contentHash", "==", contentHash)
             .where("status", "==", "Done")
             .limit(1)
             .get();
 
         if (!cacheQuery.empty) {
-            const cachedDoc = cacheQuery.docs[0].data();
-            console.log(`Cache Hit! Returning existing PDF for hash: ${contentHash}`);
-            return res.status(200).json({
-                result: cacheQuery.docs[0].id,
-                pdfUrl: cachedDoc.latestPdfUrl,
-                status: "Cached"
+            const cachedDoc = cacheQuery.docs[0];
+            return apiResponse(res, 200, {
+                jobId: cachedDoc.id,
+                status: "Cached",
+                message: "Job already processed"
             });
         }
 
-        // 3. Create Job (Pending)
+        // Create Job
         const docRef = await db.collection("job_queue").add({
+            userId,
+            userEmail,
             url,
             description,
             contentHash,
@@ -72,43 +125,138 @@ exports.clipJob = onRequest({ cors: true }, async (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // 4. Scale: Dispatch Cloud Task (via Firebase Admin SDK)
-        // This handles OIDC Auth and URL resolution automatically.
+        // Dispatch Worker
         const { getFunctions } = require("firebase-admin/functions");
         await getFunctions().taskQueue("processJobWorker").enqueue({ docId: docRef.id });
 
-        return res.status(200).json({ result: docRef.id, status: "Queued" });
+        return apiResponse(res, 200, { jobId: docRef.id, status: "Queued" });
 
     } catch (error) {
-        console.error("Error in clipJob:", error);
-        return res.status(500).json({ error: "Internal Server Error" });
+        if (error.status) {
+            return apiResponse(res, error.status, { code: error.code, message: error.message });
+        }
+        console.error("clipJob Error:", error);
+        return apiResponse(res, 500, { code: "INTERNAL_ERROR", message: "Internal Server Error" });
     }
 });
 
 /**
- * 2. WORKER: processJobWorker
- * - Triggered by Cloud Tasks (Rate Limited: 5/sec)
- * - Step A: ATS Analysis
- * - Step B: PDF Generation
+ * POST /getDownloadLink
+ * Generates short-lived signed URL for secure downloads
+ */
+exports.getDownloadLink = onRequest({ cors: true }, async (req, res) => {
+    if (req.method !== "POST") {
+        return apiResponse(res, 405, { code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
+    }
+
+    try {
+        const { userId } = await authenticateRequest(req);
+
+        const { jobId } = req.body;
+        if (!jobId) {
+            return apiResponse(res, 400, { code: "MISSING_JOB_ID", message: "Missing jobId" });
+        }
+
+        // Verify ownership
+        const docSnap = await db.collection("job_queue").doc(jobId).get();
+        if (!docSnap.exists) {
+            return apiResponse(res, 404, { code: "JOB_NOT_FOUND", message: "Job not found" });
+        }
+
+        const job = docSnap.data();
+        if (job.userId !== userId) {
+            return apiResponse(res, 403, { code: "FORBIDDEN", message: "Not your job" });
+        }
+
+        if (job.status !== "Done" || !job.storagePath) {
+            return apiResponse(res, 400, { code: "FILE_NOT_READY", message: "File not ready" });
+        }
+
+        // Generate signed URL using config
+        const config = await configService.getConfig();
+        const storageService = new StorageService(storage, config.bucketName);
+        const url = await storageService.getSignedUrl(job.storagePath, 15);
+
+        return apiResponse(res, 200, { url });
+
+    } catch (error) {
+        if (error.status) {
+            return apiResponse(res, error.status, { code: error.code, message: error.message });
+        }
+        console.error("getDownloadLink Error:", error);
+        return apiResponse(res, 500, { code: "INTERNAL_ERROR", message: "Internal Server Error" });
+    }
+});
+
+/**
+ * POST /retryJob
+ * Re-queues a failed job
+ */
+exports.retryJob = onRequest({ cors: true }, async (req, res) => {
+    if (req.method !== "POST") {
+        return apiResponse(res, 405, { code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
+    }
+
+    try {
+        const { userId } = await authenticateRequest(req);
+
+        const { jobId } = req.body;
+        if (!jobId) {
+            return apiResponse(res, 400, { code: "MISSING_JOB_ID", message: "Missing jobId" });
+        }
+
+        const docRef = db.collection("job_queue").doc(jobId);
+        const docSnap = await docRef.get();
+
+        if (!docSnap.exists) {
+            return apiResponse(res, 404, { code: "JOB_NOT_FOUND", message: "Job not found" });
+        }
+
+        const job = docSnap.data();
+        if (job.userId !== userId) {
+            return apiResponse(res, 403, { code: "FORBIDDEN", message: "Not your job" });
+        }
+
+        // Reset and re-enqueue
+        await docRef.update({
+            status: "Queued",
+            error: admin.firestore.FieldValue.delete(),
+            retriedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        const { getFunctions } = require("firebase-admin/functions");
+        await getFunctions().taskQueue("processJobWorker").enqueue({ docId: jobId });
+
+        return apiResponse(res, 200, { status: "Queued", message: "Job retried" });
+
+    } catch (error) {
+        if (error.status) {
+            return apiResponse(res, error.status, { code: error.code, message: error.message });
+        }
+        console.error("retryJob Error:", error);
+        return apiResponse(res, 500, { code: "INTERNAL_ERROR", message: "Internal Server Error" });
+    }
+});
+
+// ============================================================================
+// BACKGROUND WORKER
+// ============================================================================
+
+/**
+ * processJobWorker
+ * Cloud Task handler for resume processing
  */
 exports.processJobWorker = onTaskDispatched({
-    retryConfig: {
-        maxAttempts: 3,
-        minBackoffSeconds: 60
-    },
-    rateLimits: {
-        maxConcurrentDispatches: 10,
-        maxDispatchesPerSecond: 5
-    },
+    retryConfig: { maxAttempts: 3, minBackoffSeconds: 60 },
+    rateLimits: { maxConcurrentDispatches: 10, maxDispatchesPerSecond: 5 },
     secrets: [geminiApiKey, cloudConvertApiKey]
 }, async (req) => {
-    // When using onTaskDispatched, the payload is in req.data
     const { docId } = req.data;
     if (!docId) return;
 
     console.log(`Worker started for Job ${docId}`);
 
-    const docRef = db.collection("job_queue").document(docId);
+    const docRef = db.collection("job_queue").doc(docId);
     const docSnap = await docRef.get();
 
     if (!docSnap.exists) {
@@ -117,101 +265,87 @@ exports.processJobWorker = onTaskDispatched({
     }
 
     const data = docSnap.data();
+    if (data.status === "Done") return; // Idempotency
 
-    // Idempotency: skip if already processing/done
-    if (data.status === "Done") return;
+    // Fetch config from Firestore
+    const config = await configService.getConfig();
+    console.log(`Using model: ${config.geminiModel}`);
+
+    // Initialize Services with config
+    const aiService = new AIService(geminiApiKey.value(), config.geminiModel, config.geminiApiVersion);
+    const cloudConvertService = new CloudConvertService(cloudConvertApiKey.value());
+    const storageService = new StorageService(storage, config.bucketName);
 
     try {
         await docRef.update({ status: "Processing" });
 
-        // Initialize APIs
-        const genAI = new GoogleGenerativeAI(geminiApiKey.value());
-        const cloudConvert = new CloudConvert(cloudConvertApiKey.value());
-
-        // Use v1beta for experimental models
-        const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash-exp"
-        }, { apiVersion: 'v1beta' });
-
-        // --- STEP A: ATS SCORING ---
-        console.log("Analyzing ATS Score...");
-        const atsPrompt = `
-            Analyze this Resume vs Job Description.
-            
-            RESUME:
-            ${MASTER_RESUME}
-            
-            JOB:
-            ${data.description}
-            
-            Return JSON ONLY:
-            {
-                "score": <0-100 integer>,
-                "missing_keywords": ["keyword1", "keyword2"]
+        // Step 0: Fetch User Profile
+        let userResume = MASTER_RESUME;
+        if (data.userId) {
+            console.log(`Fetching profile for user: ${data.userId}`);
+            const profileSnap = await db.collection("profiles").doc(data.userId).get();
+            if (profileSnap.exists && profileSnap.data().masterResume) {
+                userResume = profileSnap.data().masterResume;
+                console.log("Using custom user resume template.");
+            } else {
+                console.log("No custom profile found, using global default.");
             }
-        `;
+        }
 
-        const atsResult = await model.generateContent(atsPrompt);
-        const atsText = atsResult.response.text().replace(/```json/g, "").replace(/```/g, "").trim();
-        const atsData = JSON.parse(atsText);
+        // Step A: ATS Analysis
+        console.log("Analyzing ATS Score & Metadata...");
+        const atsData = await aiService.analyzeATS(userResume, data.description);
 
-        // --- STEP B: TAILORING ---
-        console.log("Tailoring content...");
-        const tailorPrompt = `
-            Role: Resume Expert & LaTeX Specialist.
-            Task: Tailor this resume for the job description.
-            Constraint: Return RAW LATEX code only. Start with \\documentclass.
-            
-            RESUME:
-            ${MASTER_RESUME}
-            
-            JOB:
-            ${data.description}
-        `;
+        // Step B: Tailoring
+        console.log("Tailoring resume...");
+        const tailoredLatex = await aiService.tailorResume(userResume, data.description);
 
-        const tailorResult = await model.generateContent(tailorPrompt);
-        const tailoredLatex = tailorResult.response.text().replace(/```latex/g, "").replace(/```/g, "").trim();
+        // Save LaTeX for debugging
+        await docRef.update({ latestLatex: tailoredLatex, status: "Generating PDF" });
 
-        // --- STEP C: PDF GENERATION ---
+        // Step C: PDF Generation
         console.log("Converting to PDF...");
-        const job = await cloudConvert.jobs.create({
-            tasks: {
-                "import-raw": { operation: "import/raw", file: tailoredLatex, filename: "resume.tex" },
-                "convert-pdf": { operation: "convert", input: "import-raw", output_format: "pdf", input_format: "tex" },
-                "export-url": { operation: "export/url", input: "convert-pdf" }
-            }
+        const pdfUrl = await cloudConvertService.convertLatexToPdf(tailoredLatex);
+
+        // Step D: Download and Upload to Storage
+        console.log("Uploading to Firebase Storage...");
+        const pdfResponse = await fetch(pdfUrl);
+        const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+
+        const company = sanitizeFilename(atsData.company_name);
+        const title = sanitizeFilename(atsData.job_title);
+        const firstName = extractFirstName(userResume);
+        const fileName = `${company}_${title}_${firstName}.pdf`;
+        const filePath = `resumes/${fileName}`;
+
+        await storageService.uploadPdf(pdfBuffer, filePath, {
+            originalUrl: data.url,
+            jobId: docId
         });
 
-        const finishedJob = await cloudConvert.jobs.wait(job.id);
-        const exportTask = finishedJob.tasks.find(t => t.name === "export-url" && t.status === "finished");
-        const pdfUrl = exportTask.result.files[0].url;
-
-        // --- STEP D: UPDATE FIRESTORE (Atomic) ---
-        /* 
-           We store the version in a subcollection to keep the main doc clean,
-           but update the main doc with the 'latest' pointers.
-        */
-
-        // Save version
+        // Step E: Update Firestore
         const versionRef = docRef.collection("versions").doc();
         await versionRef.set({
             atsScore: atsData.score,
             missingKeywords: atsData.missing_keywords || [],
-            pdfUrl: pdfUrl,
+            storagePath: filePath,
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            latex: tailoredLatex
+            latex: tailoredLatex,
+            company: atsData.company_name,
+            jobTitle: atsData.job_title
         });
 
-        // Update Main Doc
         await docRef.update({
             status: "Done",
-            latestPdfUrl: pdfUrl,
+            storagePath: filePath,
             latestAtsScore: atsData.score,
+            company: atsData.company_name,
+            jobTitle: atsData.job_title,
             currentVersionId: versionRef.id,
             completedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        console.log(`Job ${docId} Finished. Score: ${atsData.score}`);
+        console.log(`Job ${docId} Finished. File: ${fileName}`);
 
     } catch (error) {
         console.error(`Job ${docId} Failed:`, error);
