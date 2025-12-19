@@ -4,8 +4,7 @@ module.exports = {
     mode: 'production',
     entry: {
         popup: './src/popup.js',
-        dashboard: './src/dashboard.js',
-        sandbox: './src/sandbox.js'
+        dashboard: './src/dashboard.js'
     },
     output: {
         filename: '[name].bundle.js',

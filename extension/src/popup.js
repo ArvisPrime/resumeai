@@ -26,13 +26,20 @@ let allTracks = [];
 // Auth State Listener
 onAuthStateChanged(auth, (user) => {
     if (user) {
+        console.log("Auth State: User Logged In", user.uid);
         authContainer.classList.add('hidden');
         appContainer.classList.remove('hidden');
         loadTracks(user.uid);
     } else {
+        console.log("Auth State: No User");
         authContainer.classList.remove('hidden');
         appContainer.classList.add('hidden');
     }
+}, (error) => {
+    console.error("Auth State Error:", error);
+    const statusEl = document.getElementById('status');
+    statusEl.innerHTML = `Auth Error: ${error.message}`;
+    statusEl.classList.remove('hidden');
 });
 
 async function loadTracks(uid) {

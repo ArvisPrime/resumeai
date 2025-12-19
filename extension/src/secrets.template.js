@@ -4,7 +4,8 @@ export const firebaseConfig = {
     storageBucket: "YOUR_STORAGE_BUCKET",
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_AUTH_DOMAIN",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID"
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appCheckDebugToken: "" // Optional: Add a debug token for local development
 };
 
 export const googleClientId = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";

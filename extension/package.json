@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "popup.js",
   "scripts": {
+    "prebuild": "node scripts/sync_manifest.js",
     "build": "webpack",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
