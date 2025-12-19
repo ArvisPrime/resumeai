@@ -1,58 +1,87 @@
-# ResumeForge (Node.js Edition)
+# ResumeForge
 
-A serverless, event-driven resume automation suite built on **Firebase Cloud Functions (2nd Gen)** and **Google Gemini 2.0**.
+A high-performance, production-ready resume automation suite built on **Firebase Cloud Functions (2nd Gen)** and **Google Gemini Pro**. ResumeForge uses AI to analyze job descriptions and tailor your existing LaTeX resume for maximum ATS compatibility.
 
-## 🚀 Features
-*   **Smart Scraper**: Chrome Extension cleans up ads/navbars before sending job data.
-*   **Event-Driven**: Asynchronous processing using Firestore triggers.
-*   **AI-Powered**: Gemini 2.0 Flash tailors your resume content.
-*   **PDF Generation**: CloudConvert engine for perfect LaTeX compilation.
-*   **Secure**: Zero hardcoded secrets (uses Firebase Secret Manager).
+## 🚀 Advanced Features
 
-## 1. Setup & Deployment
+*   **Modular Service Architecture**: Logic is encapsulated in dedicated services (`AIService`, `CloudConvertService`, `StorageService`).
+*   **Dynamic Configuration**: Zero hardcoded endpoints. Configuration (model selection, endpoints, bucket names) is managed via Firestore `config/app`.
+*   **User-Specific Master Resumes**: Store and manage your own LaTeX templates in the **Profile** dashboard.
+*   **ATS Scoring & Analysis**: Real-time evaluation of how well your resume matches a job.
+*   **Real-time Dashboard**: Track job status (`Analyzing` → `Tailoring` → `Generating PDF`) with live updates from Firestore.
+*   **Secure & Scalable**: Asynchronous processing using **Google Cloud Tasks** to handle high volume without timeouts.
 
-### Prerequisites
-*   Node.js 20+
-*   Firebase CLI (`npm install -g firebase-tools`)
-*   Google Cloud Project (Blaze Plan required for Gen 2 Functions)
+---
 
-### A. API Keys
-Ensure you have:
-1.  **Google Gemini API Key** (from AI Studio)
-2.  **CloudConvert API Key** (from CloudConvert Dashboard)
+## 🏗️ Architecture Overview
 
-### B. Deploy Backend
+### Backend (Node.js)
+- **`clipJob`**: HTTP entry point for the extension.
+- **`processJobWorker`**: Background worker (Cloud Task) that handles the heavy lifting (AI + PDF Gen).
+- **`getDownloadLink`**: Generates secure, short-lived signed URLs for downloads.
+
+### Frontend (Chrome Extension)
+- **`JobService`**: Centralized service layer for Firestore and API interactions.
+- **`Dashboard`**: React-inspired (Vanilla JS + Bundler) interface for history and profile management.
+- **`Webpack`**: Optimized build process for the extension.
+
+---
+
+## 🛠️ Setup & Deployment
+
+### 1. Prerequisites
+- Node.js 20+
+- Firebase CLI (`npm install -g firebase-tools`)
+- A Google Cloud Project on the **Blaze Plan**.
+
+### 2. Backend Deployment
 1.  Navigate to the functions directory:
     ```bash
-    cd firebase-functions
+    cd firebase-functions/functions
     ```
-2.  Set your secrets (You will be prompted to paste values):
+2.  Set required secrets:
     ```bash
     firebase functions:secrets:set GEMINI_API_KEY
     firebase functions:secrets:set CLOUDCONVERT_API_KEY
     ```
-3.  Deploy the functions:
+3.  Deploy:
     ```bash
     firebase deploy --only functions
     ```
-    *Note: If prompted to install dependencies or enable APIs, say Yes.*
 
-### C. Extension Setup
-1.  Open `extension/popup.js`.
-2.  Ensure `API_URL` matches your deployed `clipJob` function URL (e.g., `https://clipjob-xxxx-uc.a.run.app`).
-    *   *Tip: You can find this URL in the Firebase Console or deployment output.*
+### 3. Extension Setup
+The extension now uses **Webpack**. You must build the bundles before loading into Chrome.
+1.  Navigate to the extension directory:
+    ```bash
+    cd extension
+    ```
+2.  Install & Build:
+    ```bash
+    npm install
+    npx webpack --mode production
+    ```
 3.  Load into Chrome:
-    *   `chrome://extensions/` > Enable Developer Mode > **Load Unpacked**.
-    *   Select the `extension/` folder.
+    - Open `chrome://extensions/`.
+    - Enable **Developer Mode**.
+    - Click **Load Unpacked**.
+    - Select the `extension/` folder in this repository.
 
-## 2. Usage
-1.  **Find a Job**: Navigate to any job posting (LinkedIn, etc.).
-2.  **Clip It**: Click the **ResumeForge** extension icon.
-3.  **Wait**:
-    *   The extension sends the job to the queue.
-    *   The backend processes it (approx. 20-40 seconds).
-    *   Check your **Firebase Console > Storage** for the generated PDF.
-    *   *Upcoming Feature: The extension will notify you when done.*
+---
 
-## 3. Configuration
-*   **Master Resume**: Edit `firebase-functions/functions/master_resume.tex` to update your core resume content. Redeploy after changes.
+## ⚙️ Configuration (Firestore)
+
+ResumeForge loads its configuration dynamically from the `config/app` document in Firestore.
+
+**Required Schema:**
+```json
+{
+  "geminiModel": "gemini-3-flash-preview",
+  "bucketName": "your-bucket-name.appspot.com",
+  "region": "us-central1"
+}
+```
+
+---
+
+## 📄 License
+MIT License. Optimized for the 2025 Job Market.
