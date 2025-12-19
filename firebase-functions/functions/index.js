@@ -5,6 +5,7 @@
 
 const { onRequest } = require("firebase-functions/v2/https");
 const { onTaskDispatched } = require("firebase-functions/v2/tasks");
+const { onDocumentDeleted } = require("firebase-functions/v2/firestore");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
@@ -81,7 +82,7 @@ function extractFirstName(latex) {
  * POST /clipJob
  * Gatekeeper: Validates, caches, and queues jobs
  */
-exports.clipJob = onRequest({ cors: true }, async (req, res) => {
+exports.clipJob = onRequest({ cors: true, enforceAppCheck: true }, async (req, res) => {
     if (req.method !== "POST") {
         return apiResponse(res, 405, { code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
     }
@@ -120,6 +121,7 @@ exports.clipJob = onRequest({ cors: true }, async (req, res) => {
             userEmail,
             url,
             description,
+            trackId: req.body.trackId || "default",
             contentHash,
             status: "Queued",
             createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -144,7 +146,7 @@ exports.clipJob = onRequest({ cors: true }, async (req, res) => {
  * POST /getDownloadLink
  * Generates short-lived signed URL for secure downloads
  */
-exports.getDownloadLink = onRequest({ cors: true }, async (req, res) => {
+exports.getDownloadLink = onRequest({ cors: true, enforceAppCheck: true }, async (req, res) => {
     if (req.method !== "POST") {
         return apiResponse(res, 405, { code: "METHOD_NOT_ALLOWED", message: "Method Not Allowed" });
     }
@@ -277,75 +279,110 @@ exports.processJobWorker = onTaskDispatched({
     const storageService = new StorageService(storage, config.bucketName);
 
     try {
-        await docRef.update({ status: "Processing" });
+        await docRef.update({ status: "Preparing" });
 
-        // Step 0: Fetch User Profile
+        // Step 0: Fetch User Profile / Track
         let userResume = MASTER_RESUME;
         if (data.userId) {
             console.log(`Fetching profile for user: ${data.userId}`);
-            const profileSnap = await db.collection("profiles").doc(data.userId).get();
-            if (profileSnap.exists && profileSnap.data().masterResume) {
-                userResume = profileSnap.data().masterResume;
-                console.log("Using custom user resume template.");
-            } else {
-                console.log("No custom profile found, using global default.");
+
+            // Try fetching specific track first
+            if (data.trackId && data.trackId !== "default") {
+                const trackSnap = await db.collection("profiles").doc(data.userId).collection("tracks").doc(data.trackId).get();
+                if (trackSnap.exists && trackSnap.data().latex) {
+                    userResume = trackSnap.data().latex;
+                    console.log(`Using custom track: ${data.trackId}`);
+                }
+            }
+
+            // Fallback to legacy masterResume or Default track
+            if (userResume === MASTER_RESUME) {
+                const profileSnap = await db.collection("profiles").doc(data.userId).get();
+                if (profileSnap.exists && profileSnap.data().masterResume) {
+                    userResume = profileSnap.data().masterResume;
+                    console.log("Using legacy custom master resume.");
+                } else if (data.trackId === "default") {
+                    // Check if there is a track named "default" (though usually they have random IDs)
+                    const defaultTracks = await db.collection("profiles").doc(data.userId).collection("tracks").where("isDefault", "==", true).limit(1).get();
+                    if (!defaultTracks.empty) {
+                        userResume = defaultTracks.docs[0].data().latex;
+                    }
+                }
             }
         }
 
         // Step A: ATS Analysis
+        await docRef.update({ status: "Analyzing" });
         console.log("Analyzing ATS Score & Metadata...");
         const atsData = await aiService.analyzeATS(userResume, data.description);
 
+        // Save metadata early
+        await docRef.update({
+            company: atsData.company_name,
+            jobTitle: atsData.job_title,
+            latestAtsScore: atsData.score
+        });
+
         // Step B: Tailoring
+        await docRef.update({ status: "Tailoring" });
         console.log("Tailoring resume...");
         const tailoredLatex = await aiService.tailorResume(userResume, data.description);
 
-        // Save LaTeX for debugging
-        await docRef.update({ latestLatex: tailoredLatex, status: "Generating PDF" });
-
         // Step C: PDF Generation
-        console.log("Converting to PDF...");
-        const pdfUrl = await cloudConvertService.convertLatexToPdf(tailoredLatex);
+        await docRef.update({ status: "Generating PDF", tailoredLatex });
 
-        // Step D: Download and Upload to Storage
-        console.log("Uploading to Firebase Storage...");
-        const pdfResponse = await fetch(pdfUrl);
-        const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+        try {
+            console.log("Converting to PDF...");
+            const pdfUrl = await cloudConvertService.convertLatexToPdf(tailoredLatex);
 
-        const company = sanitizeFilename(atsData.company_name);
-        const title = sanitizeFilename(atsData.job_title);
-        const firstName = extractFirstName(userResume);
-        const fileName = `${company}_${title}_${firstName}.pdf`;
-        const filePath = `resumes/${fileName}`;
+            // Step D: Download and Upload to Storage
+            console.log("Uploading to Firebase Storage...");
+            const pdfResponse = await fetch(pdfUrl);
+            const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
 
-        await storageService.uploadPdf(pdfBuffer, filePath, {
-            originalUrl: data.url,
-            jobId: docId
-        });
+            const company = sanitizeFilename(atsData.company_name);
+            const title = sanitizeFilename(atsData.job_title);
+            const firstName = extractFirstName(userResume);
+            const fileName = `${company}_${title}_${firstName}.pdf`;
+            const filePath = `resumes/${fileName}`;
 
-        // Step E: Update Firestore
-        const versionRef = docRef.collection("versions").doc();
-        await versionRef.set({
-            atsScore: atsData.score,
-            missingKeywords: atsData.missing_keywords || [],
-            storagePath: filePath,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            latex: tailoredLatex,
-            company: atsData.company_name,
-            jobTitle: atsData.job_title
-        });
+            await storageService.uploadPdf(pdfBuffer, filePath, {
+                originalUrl: data.url,
+                jobId: docId
+            });
 
-        await docRef.update({
-            status: "Done",
-            storagePath: filePath,
-            latestAtsScore: atsData.score,
-            company: atsData.company_name,
-            jobTitle: atsData.job_title,
-            currentVersionId: versionRef.id,
-            completedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+            // Step E: Update Firestore
+            await docRef.update({ status: "Finalizing" });
+            const versionRef = docRef.collection("versions").doc();
+            await versionRef.set({
+                atsScore: atsData.score,
+                missingKeywords: atsData.missing_keywords || [],
+                storagePath: filePath,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                latex: tailoredLatex,
+                company: atsData.company_name,
+                jobTitle: atsData.job_title
+            });
 
-        console.log(`Job ${docId} Finished. File: ${fileName}`);
+            await docRef.update({
+                status: "Done",
+                storagePath: filePath,
+                latestAtsScore: atsData.score,
+                company: atsData.company_name,
+                jobTitle: atsData.job_title,
+                currentVersionId: versionRef.id,
+                completedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log(`Job ${docId} Finished. File: ${fileName}`);
+
+        } catch (pdfError) {
+            console.error("PDF Generation failed but LaTeX was saved:", pdfError);
+            await docRef.update({
+                status: "Error",
+                error: "PDF conversion failed. You can still access the tailored LaTeX below."
+            });
+        }
 
     } catch (error) {
         console.error(`Job ${docId} Failed:`, error);
@@ -353,5 +390,23 @@ exports.processJobWorker = onTaskDispatched({
             status: "Error",
             error: error.message
         });
+    }
+});
+
+/**
+ * Storage Cleanup - Delete PDF when Job is deleted
+ */
+exports.onJobDeleted = onDocumentDeleted("job_queue/{docId}", async (event) => {
+    const data = event.data.before.data();
+    if (data.storagePath) {
+        console.log(`Cleaning up storage for deleted job: ${event.params.docId}`);
+        const config = await configService.getConfig();
+        const bucket = admin.storage().bucket(config.bucketName);
+        try {
+            await bucket.file(data.storagePath).delete();
+            console.log("PDF deleted successfully.");
+        } catch (e) {
+            console.error("Failed to delete PDF from Storage:", e);
+        }
     }
 });

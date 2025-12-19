@@ -109,14 +109,49 @@
       color: #155724;
     }
 
-    .error {
-      background: #f8d7da;
-      color: #721c24;
-    }
-
     .processing {
       background: #cce5ff;
       color: #004085;
+    }
+
+    /* Review Group */
+    .review-group {
+      text-align: left;
+      margin-bottom: 16px;
+    }
+
+    .review-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #666;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    select,
+    textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      height: 120px;
+      resize: none;
+      font-size: 12px;
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      color: #3498db;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 5px;
     }
 
     .footer {
@@ -144,16 +179,38 @@
 
     <!-- APP CONTAINER -->
     <div id="appContainer" class="hidden">
-      <p style="margin-bottom: 20px; color: #555; font-size: 14px;">
-        Clip the current job description to build your tailored resume.
-      </p>
+      <!-- SCRAPE STATE -->
+      <div id="scrapeState">
+        <p style="margin-bottom: 20px; color: #555; font-size: 14px;">
+          Clip the current job description to build your tailored resume.
+        </p>
+        <button id="tailorBtn" class="btn">
+          Clip Job Now
+        </button>
+      </div>
 
-      <button id="tailorBtn" class="btn">
-        <span id="btnText">Clip Job to Queue</span>
-        <div id="spinner" class="spinner hidden"></div>
-      </button>
+      <!-- REVIEW STATE -->
+      <div id="reviewState" class="hidden">
+        <div class="review-group">
+          <label>Target Resume Track</label>
+          <select id="trackSelect">
+            <option value="default">Loading tracks...</option>
+          </select>
+        </div>
 
-      <button id="openDashboardBtn" class="btn btn-secondary" style="margin-top:5px;">
+        <div class="review-group">
+          <label>Review Job Description</label>
+          <textarea id="editDesc"></textarea>
+        </div>
+
+        <button id="submitJobBtn" class="btn">
+          <span id="submitBtnText">Tailor Resume</span>
+          <div id="submitSpinner" class="spinner hidden"></div>
+        </button>
+        <button id="cancelBtn" class="icon-btn">← Back</button>
+      </div>
+
+      <button id="openDashboardBtn" class="btn btn-secondary" style="margin-top:10px;">
         Open Dashboard
       </button>
 

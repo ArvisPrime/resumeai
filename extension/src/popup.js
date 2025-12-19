@@ -10,17 +10,45 @@ import JobService from './services/JobService';
 const authContainer = document.getElementById('authContainer');
 const appContainer = document.getElementById('appContainer');
 const openAuthBtn = document.getElementById('openAuthBtn');
+const openDashboardBtn = document.getElementById('openDashboardBtn');
+const signOutAppBtn = document.getElementById('signOutAppBtn');
+
+const scrapeState = document.getElementById('scrapeState');
+const reviewState = document.getElementById('reviewState');
+const editDesc = document.getElementById('editDesc');
+const trackSelect = document.getElementById('trackSelect');
+const submitJobBtn = document.getElementById('submitJobBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+
+// State
+let allTracks = [];
 
 // Auth State Listener
 onAuthStateChanged(auth, (user) => {
     if (user) {
         authContainer.classList.add('hidden');
         appContainer.classList.remove('hidden');
+        loadTracks(user.uid);
     } else {
         authContainer.classList.remove('hidden');
         appContainer.classList.add('hidden');
     }
 });
+
+async function loadTracks(uid) {
+    try {
+        allTracks = await JobService.getResumeTracks(uid);
+        renderTrackSelect();
+    } catch (e) {
+        console.error("Failed to load tracks:", e);
+    }
+}
+
+function renderTrackSelect() {
+    trackSelect.innerHTML = allTracks.map(t =>
+        `<option value="${t.id}">${t.name}</option>`
+    ).join('') || '<option value="default">Default Track</option>';
+}
 
 // Auth Actions
 if (openAuthBtn) {
@@ -38,86 +66,92 @@ openDashboardBtn.addEventListener('click', () => {
 });
 
 // ============================================================================
-// CLIPPING LOGIC (via JobService)
+// CLIPPING LOGIC
 // ============================================================================
 
 tailorBtn.addEventListener('click', async () => {
     const statusDiv = document.getElementById('status');
-    const spinner = document.getElementById('spinner');
-    const btnText = document.getElementById('btnText');
-    const btn = document.getElementById('tailorBtn');
 
-    // Validation
-    if (!auth.currentUser) {
-        statusDiv.textContent = "Error: Not authenticated.";
-        statusDiv.className = "error";
-        statusDiv.classList.remove('hidden');
-        return;
-    }
-
-    // Reset UI
     statusDiv.className = "processing";
-    statusDiv.textContent = "Analyzing page structure...";
+    statusDiv.textContent = "Scraping job details...";
     statusDiv.classList.remove('hidden');
-    spinner.classList.remove('hidden');
-    btnText.textContent = "Processing...";
-    btn.disabled = true;
 
     try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab) throw new Error("No active tab found.");
 
-        if (!tab) {
-            throw new Error("No active tab found.");
-        }
-
-        // Smart Scraping
         const results = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
                 const clone = document.body.cloneNode(true);
-
-                const selectorsToRemove = [
-                    'nav', 'header', 'footer', 'script', 'style', 'noscript', 'iframe',
-                    '[role="navigation"]', '.nav', '.header', '.footer', '.menu', '#menu',
-                    '.cookie-notice', '.advertisement', '.ad', '.sidebar'
-                ];
-
-                selectorsToRemove.forEach(sel => {
-                    clone.querySelectorAll(sel).forEach(el => el.remove());
-                });
-
-                let text = clone.innerText || "";
-                return text.replace(/\s+/g, ' ').trim();
+                const selectorsToRemove = ['nav', 'header', 'footer', 'script', 'style', 'noscript', 'iframe'];
+                selectorsToRemove.forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
+                return (clone.innerText || "").replace(/\s+/g, ' ').trim();
             },
         });
 
-        if (!results || !results[0] || !results[0].result) {
-            throw new Error("Failed to scrape page content.");
-        }
+        const text = results[0].result;
+        if (text.length < 100) throw new Error("Description too short.");
 
-        const pageText = results[0].result;
-        const pageUrl = tab.url;
-
-        if (pageText.length < 100) {
-            throw new Error("Job description is too short (< 100 chars).");
-        }
-
-        statusDiv.textContent = `Sending ${pageText.length} chars to ResumeForge...`;
-
-        // Use JobService
-        const result = await JobService.submitJob(pageUrl, pageText);
-
-        statusDiv.textContent = result.status === "Cached"
-            ? "Success! Found cached result."
-            : "Success! Job queued.";
-        statusDiv.className = "success";
+        // Switch to Review
+        editDesc.value = text;
+        scrapeState.classList.add('hidden');
+        reviewState.classList.remove('hidden');
+        statusDiv.classList.add('hidden');
 
     } catch (error) {
-        console.error(error);
         statusDiv.textContent = error.message;
         statusDiv.className = "error";
-        btnText.textContent = "Try Again";
-        btn.disabled = false;
+        statusDiv.classList.remove('hidden');
+    }
+});
+
+cancelBtn.addEventListener('click', () => {
+    scrapeState.classList.remove('hidden');
+    reviewState.classList.add('hidden');
+});
+
+submitJobBtn.addEventListener('click', async () => {
+    const statusDiv = document.getElementById('status');
+    const spinner = document.getElementById('submitSpinner');
+    const btnText = document.getElementById('submitBtnText');
+    const trackId = trackSelect.value;
+    const description = editDesc.value.trim();
+
+    statusDiv.className = "processing";
+    statusDiv.textContent = "Submitting to Queue...";
+    statusDiv.classList.remove('hidden');
+    spinner.classList.remove('hidden');
+    btnText.textContent = "Queuing...";
+    submitJobBtn.disabled = true;
+
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        const result = await JobService.submitJob(tab.url, description, trackId);
+
+        if (result.jobId) {
+            JobService.subscribeToJob(result.jobId, (job) => {
+                if (job.status === "Done") {
+                    statusDiv.textContent = "Success! Resume Ready.";
+                    statusDiv.className = "success";
+                    submitJobBtn.disabled = false;
+                    btnText.textContent = "Tailor Another";
+                    spinner.classList.add('hidden');
+                } else if (job.status === "Error") {
+                    statusDiv.textContent = "Error: " + (job.error || "Failed");
+                    statusDiv.className = "error";
+                    submitJobBtn.disabled = false;
+                    spinner.classList.add('hidden');
+                } else {
+                    statusDiv.textContent = job.status + "...";
+                }
+            });
+        }
+    } catch (error) {
+        statusDiv.textContent = error.message;
+        statusDiv.className = "error";
+        submitJobBtn.disabled = false;
         spinner.classList.add('hidden');
+        btnText.textContent = "Tailor Resume";
     }
 });

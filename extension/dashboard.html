@@ -10,19 +10,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #3b82f6;
-            --primary-hover: #2563eb;
-            --bg-color: #f9fafb;
-            --card-bg: #ffffff;
-            --text-main: #111827;
-            --text-secondary: #6b7280;
-            --border-color: #e5e7eb;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-color: #f8fafc;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --text-main: #0f172a;
+            --text-secondary: #64748b;
+            --border-color: rgba(226, 232, 240, 0.8);
 
             /* Status Colors */
-            --success-bg: #d1fae5;
-            --success-text: #065f46;
-            --processing-bg: #dbeafe;
-            --processing-text: #1e40af;
+            --success-bg: #dcfce7;
+            --success-text: #166534;
+            --processing-bg: #e0e7ff;
+            --processing-text: #3730a3;
             --error-bg: #fee2e2;
             --error-text: #991b1b;
             --queued-bg: #fef3c7;
@@ -34,6 +34,10 @@
             margin: 0;
             padding: 0;
             background-color: var(--bg-color);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(139, 92, 246, 0.05) 0, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(217, 70, 239, 0.05) 0, transparent 50%);
             color: var(--text-main);
             height: 100vh;
             display: flex;
@@ -42,21 +46,38 @@
 
         /* Navbar */
         .navbar {
-            background: white;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border-bottom: 1px solid var(--border-color);
-            padding: 0.75rem 1.5rem;
+            padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-shrink: 0;
+            z-index: 100;
         }
 
         .logo {
-            font-size: 1.125rem;
-            font-weight: 600;
+            font-size: 1.25rem;
+            font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            letter-spacing: -0.02em;
+            color: var(--text-main);
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
         }
 
         .user-actions {
@@ -210,6 +231,24 @@
             color: var(--error-text);
         }
 
+        .badge-pulse {
+            animation: pulse-opacity 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-opacity {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
         .score-indicator {
             display: flex;
             align-items: center;
@@ -315,6 +354,187 @@
             color: #dc2626;
         }
 
+        /* Welcome Card */
+        #welcomeCard {
+            max-width: 600px;
+            margin: 60px auto;
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+        }
+
+        .welcome-icon {
+            width: 64px;
+            height: 64px;
+            background: #f1f5f9;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin: 0 auto 24px;
+        }
+
+        .welcome-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .welcome-text {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .onboarding-steps {
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .step-item {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .step-content b {
+            display: block;
+            font-size: 0.875rem;
+            margin-bottom: 2px;
+        }
+
+        .step-content p {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        /* Profile Layout */
+        .profile-layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .track-list {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .track-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+
+        .track-item:last-child {
+            border-bottom: none;
+        }
+
+        .track-item:hover {
+            background: #f8fafc;
+            color: var(--text-main);
+        }
+
+        .track-item.active {
+            background: #eff6ff;
+            color: var(--primary);
+            font-weight: 600;
+            border-left: 3px solid var(--primary);
+        }
+
+        .add-track-btn {
+            width: 100%;
+            padding: 12px;
+            background: white;
+            border: none;
+            color: var(--primary);
+            font-weight: 600;
+            cursor: pointer;
+            text-align: left;
+            font-size: 0.875rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .add-track-btn:hover {
+            background: #f8fafc;
+        }
+
+        .track-actions {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .track-item:hover .track-actions {
+            opacity: 1;
+        }
+
+        .btn-ghost-danger {
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            padding: 4px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .btn-ghost-danger:hover {
+            background: #fee2e2;
+        }
+
+        .btn-danger {
+            background-color: transparent;
+            color: #ef4444;
+            border: 1px solid #fee2e2;
+        }
+
+        .btn-danger:hover {
+            background-color: #fee2e2;
+            border-color: #fecaca;
+        }
+
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-ghost:hover {
+            background: #f8fafc;
+        }
+
         .hidden {
             display: none !important;
         }
@@ -323,6 +543,7 @@
             padding: 40px;
             text-align: center;
             color: var(--text-secondary);
+            font-weight: 500;
         }
     </style>
 </head>
@@ -331,7 +552,14 @@
     <!-- Navbar -->
     <nav class="navbar">
         <div class="logo">
-            📄 ResumeForge
+            <div class="logo-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+            </div>
+            ResumeForge
         </div>
         <div id="headerActions" class="user-actions hidden">
             <div class="tabs">
@@ -364,6 +592,40 @@
     <div id="jobsSection" class="table-container">
         <div id="loading">Loading...</div>
 
+        <!-- Welcome Card -->
+        <div id="welcomeCard" class="hidden">
+            <div class="welcome-icon">✨</div>
+            <h2 class="welcome-title">Welcome to ResumeForge</h2>
+            <p class="welcome-text">Let's get your first AI-tailored resume ready in just a few steps.</p>
+
+            <div class="onboarding-steps">
+                <div class="step-item">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <b>Upload your Master Resume</b>
+                        <p>Go to the Profile tab and paste your base LaTeX resume.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <b>Clip a Job Description</b>
+                        <p>Navigate to any job posting and use the extension to clip it.</p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <b>Download & Apply</b>
+                        <p>Your tailored resume will appear here automatically.</p>
+                    </div>
+                </div>
+            </div>
+
+            <button id="goToProfileBtn" class="btn btn-primary" style="width: 100%; padding: 12px;">Set Up My
+                Profile</button>
+        </div>
+
         <table id="jobsTable" class="hidden">
             <thead>
                 <tr>
@@ -383,19 +645,94 @@
 
     <!-- Profile Content -->
     <div id="profileSection" class="hidden">
-        <div class="profile-card">
-            <h2>Master Resume Template</h2>
-            <p>This is your base resume in LaTeX format. ResumeForge will use this as a template to generate tailored
-                versions for each job you clip.</p>
-
-            <div class="textarea-container">
-                <label for="masterResumeRaw">LaTeX Source</label>
-                <textarea id="masterResumeRaw" placeholder="\documentclass..."></textarea>
+        <div class="profile-layout">
+            <!-- Tracks Sidebar -->
+            <div class="track-sidebar">
+                <label>Resume Tracks</label>
+                <div class="track-list" id="trackList">
+                    <!-- Tracks injected here -->
+                </div>
+                <button id="addTrackBtn" class="add-track-btn">+ Add New Track</button>
             </div>
 
-            <div style="display: flex; align-items: center;">
-                <button id="saveProfileBtn" class="btn btn-primary">Save Template</button>
-                <span id="saveStatus" class="save-status"></span>
+            <!-- Editor Area -->
+            <div id="editorArea">
+                <div class="profile-card">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                        <h2 id="currentTrackName">Select a Track</h2>
+                        <button id="deleteTrackBtn" class="btn btn-ghost-danger hidden" title="Delete Track">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M3 6h18"></path>
+                                <path
+                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
+                    <p>Edit your LaTeX source. ResumeForge will tailor this version for high ATS compatibility.</p>
+
+                    <div class="textarea-container">
+                        <label for="masterResumeRaw">LaTeX Source</label>
+                        <textarea id="masterResumeRaw" placeholder="\documentclass..."></textarea>
+                    </div>
+
+                    <div style="display: flex; align-items: center;">
+                        <button id="saveProfileBtn" class="btn btn-primary">Save Changes</button>
+                        <span id="saveStatus" class="save-status"></span>
+                    </div>
+                </div>
+
+                <div class="profile-card" style="margin-top: 24px;">
+                    <h2>Guide: How it Works</h2>
+                    <div class="onboarding-steps">
+                        <div class="step-item">
+                            <div class="step-number">A</div>
+                            <div class="step-content">
+                                <b>LaTeX Format Required</b>
+                                <p>We use standard LaTeX for generation. Paste your full source (\documentclass to
+                                    \end{document}).</p>
+                            </div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-number">B</div>
+                            <div class="step-content">
+                                <b>Dynamic Tailoring</b>
+                                <p>Our AI analyzes your sections and rewrites bullet points to match the job description
+                                    perfectly.</p>
+                            </div>
+                        </div>
+                        <div class="step-item">
+                            <div class="step-number">C</div>
+                            <div class="step-content">
+                                <b>Multiple Tracks</b>
+                                <p>Create different tracks for different roles (e.g. Frontend, Backend, PM).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for LaTeX Source -->
+    <div id="latexModal" class="modal hidden">
+        <div class="modal-content profile-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 style="margin: 0;">Tailored LaTeX Source</h2>
+                <button id="closeModal" class="btn btn-ghost" style="padding: 6px 12px;">Close</button>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                If your PDF failed to generate, you can copy this LaTeX and build it locally in Overleaf or any LaTeX
+                editor.
+            </p>
+            <div class="textarea-container">
+                <textarea id="latexDisplay" readonly
+                    style="height: 350px; font-family: 'Fira Code', monospace; font-size: 12px; background: #fafafa;"></textarea>
+            </div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button id="copyLatexBtn" class="btn btn-primary" style="width: 200px;">Copy to Clipboard</button>
             </div>
         </div>
     </div>

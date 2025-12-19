@@ -3,7 +3,7 @@
  */
 
 import { auth, db } from '../firebase-config';
-import { collection, query, where, orderBy, onSnapshot, limit, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, limit, doc, getDoc, setDoc, serverTimestamp, addDoc, deleteDoc, updateDoc, getDocs } from "firebase/firestore";
 
 // Config Cache
 let cachedConfig = null;
@@ -102,8 +102,22 @@ class JobService {
      * @param {string} description - The scraped job description
      * @returns {Promise<{jobId: string, status: string}>}
      */
-    static async submitJob(url, description) {
-        return apiRequest('clipJob', { url, description });
+    static async submitJob(url, description, trackId = 'default') {
+        return apiRequest('clipJob', { url, description, trackId });
+    }
+
+    /**
+     * Subscribe to real-time updates for a single job
+     * @param {string} jobId - The job document ID
+     * @param {function} callback - Called with job data on each update
+     * @returns {function} Unsubscribe function
+     */
+    static subscribeToJob(jobId, callback) {
+        return onSnapshot(doc(db, "job_queue", jobId), (snapshot) => {
+            if (snapshot.exists()) {
+                callback({ id: snapshot.id, ...snapshot.data() });
+            }
+        });
     }
 
     /**
@@ -139,6 +153,13 @@ class JobService {
     }
 
     /**
+     * Delete a job from history
+     */
+    static async deleteJob(jobId) {
+        await deleteDoc(doc(db, "job_queue", jobId));
+    }
+
+    /**
      * Get a short-lived download URL for a completed job
      * @param {string} jobId - The job document ID
      * @returns {Promise<{url: string}>}
@@ -168,6 +189,48 @@ class JobService {
             ...profileData,
             updatedAt: serverTimestamp()
         }, { merge: true });
+    }
+
+    /**
+     * Get all resume tracks for a user
+     */
+    static async getResumeTracks(userId) {
+        const tracksRef = collection(db, "profiles", userId, "tracks");
+        const snap = await getDocs(query(tracksRef, orderBy("name", "asc")));
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    /**
+     * Add a new resume track
+     */
+    static async addResumeTrack(userId, name, latex) {
+        const tracksRef = collection(db, "profiles", userId, "tracks");
+        const docRef = await addDoc(tracksRef, {
+            name,
+            latex,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        });
+        return docRef.id;
+    }
+
+    /**
+     * Update an existing track
+     */
+    static async updateResumeTrack(userId, trackId, data) {
+        const trackRef = doc(db, "profiles", userId, "tracks", trackId);
+        await updateDoc(trackRef, {
+            ...data,
+            updatedAt: serverTimestamp()
+        });
+    }
+
+    /**
+     * Delete a resume track
+     */
+    static async deleteResumeTrack(userId, trackId) {
+        const trackRef = doc(db, "profiles", userId, "tracks", trackId);
+        await deleteDoc(trackRef);
     }
 
     /**

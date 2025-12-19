@@ -15,6 +15,8 @@ const statusFilter = document.getElementById('statusFilter');
 const sortOrder = document.getElementById('sortOrder');
 const userEmailSpan = document.getElementById('userEmail');
 const signOutBtn = document.getElementById('signOutBtn');
+const welcomeCard = document.getElementById('welcomeCard');
+const goToProfileBtn = document.getElementById('goToProfileBtn');
 
 // Nav & Sections
 const tabJobs = document.getElementById('tabJobs');
@@ -23,12 +25,18 @@ const jobsSection = document.getElementById('jobsSection');
 const profileSection = document.getElementById('profileSection');
 
 // Profile Elements
+const trackList = document.getElementById('trackList');
+const addTrackBtn = document.getElementById('addTrackBtn');
+const currentTrackName = document.getElementById('currentTrackName');
 const masterResumeRaw = document.getElementById('masterResumeRaw');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
+const deleteTrackBtn = document.getElementById('deleteTrackBtn');
 const saveStatus = document.getElementById('saveStatus');
 
 // State
 let allJobs = [];
+let allTracks = [];
+let currentTrackId = null;
 let unsubscribe = null;
 
 // ============================================================================
@@ -41,7 +49,7 @@ onAuthStateChanged(auth, (user) => {
         document.getElementById('headerActions').classList.remove('hidden');
         loginContainer.classList.add('hidden');
         setupRealtimeListener(user.uid);
-        loadProfile(user.uid);
+        loadProfileAndTracks(user.uid);
     } else {
         userEmailSpan.textContent = '';
         document.getElementById('headerActions').classList.add('hidden');
@@ -102,13 +110,22 @@ function switchTab(tabName) {
         tabProfile.classList.remove('active');
         jobsSection.classList.remove('hidden');
         profileSection.classList.add('hidden');
-        controlBar.style.display = 'flex'; // Use style.display because control-bar might be flex
+        controlBar.style.display = 'flex';
+        // Show/Hide table vs welcome card
+        if (allJobs.length === 0) {
+            jobsTable.classList.add('hidden');
+            welcomeCard.classList.remove('hidden');
+        } else {
+            jobsTable.classList.remove('hidden');
+            welcomeCard.classList.add('hidden');
+        }
     } else {
         tabProfile.classList.add('active');
         tabJobs.classList.remove('active');
         profileSection.classList.remove('hidden');
         jobsSection.classList.add('hidden');
         controlBar.style.display = 'none';
+        welcomeCard.classList.add('hidden');
     }
 }
 
@@ -123,8 +140,17 @@ function setupRealtimeListener(uid) {
     unsubscribe = JobService.subscribeToJobs(uid, (jobs) => {
         allJobs = jobs;
         loading.style.display = 'none';
-        jobsTable.classList.remove('hidden');
-        controlBar.classList.remove('hidden');
+
+        if (jobs.length === 0) {
+            jobsTable.classList.add('hidden');
+            welcomeCard.classList.remove('hidden');
+            controlBar.classList.add('hidden');
+        } else {
+            jobsTable.classList.remove('hidden');
+            welcomeCard.classList.add('hidden');
+            controlBar.classList.remove('hidden');
+        }
+
         applyFiltersAndRender();
     });
 }
@@ -180,9 +206,15 @@ function renderTable(jobs) {
 
         // Status Badge
         let badgeClass = 'badge-queued';
-        if (job.status === 'Done') badgeClass = 'badge-done';
-        else if (job.status === 'Processing') badgeClass = 'badge-processing';
-        else if (job.status === 'Error') badgeClass = 'badge-error';
+        const activeStatuses = ['Processing', 'Preparing', 'Analyzing', 'Tailoring', 'Generating PDF', 'Finalizing'];
+
+        if (job.status === 'Done') {
+            badgeClass = 'badge-done';
+        } else if (job.status === 'Error') {
+            badgeClass = 'badge-error';
+        } else if (activeStatuses.includes(job.status)) {
+            badgeClass = 'badge-processing badge-pulse';
+        }
 
         // Date
         const dateStr = job.createdAt ? new Date(job.createdAt.seconds * 1000).toLocaleString() : '—';
@@ -195,7 +227,14 @@ function renderTable(jobs) {
             actions = `<button class="btn retry-btn" data-id="${job.id}">Retry ⟳</button>`;
         }
 
-        actions += ` <a href="${job.url}" target="_blank" class="btn" style="text-decoration:none; margin-left:5px;">Original</a>`;
+        if (job.tailoredLatex) {
+            actions += `<button class="btn btn-ghost source-btn" data-id="${job.id}" style="margin-left:5px;">Source</button>`;
+        }
+
+        actions += ` <a href="${job.url}" target="_blank" class="btn" style="text-decoration:none; margin-left:5px;">Link</a>`;
+        actions += `<button class="btn btn-danger delete-job-btn" data-id="${job.id}" style="margin-left:5px;" title="Delete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>`;
 
         // Score Color
         let score = job.latestAtsScore || 0;
@@ -220,13 +259,20 @@ function renderTable(jobs) {
         jobListBody.appendChild(tr);
     });
 
-    // Attach Event Listeners
     document.querySelectorAll('.retry-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => handleRetry(e.target.getAttribute('data-id')));
+        btn.addEventListener('click', (e) => handleRetry(e.target.closest('button').getAttribute('data-id')));
     });
 
     document.querySelectorAll('.download-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => handleDownload(e.target.getAttribute('data-id')));
+        btn.addEventListener('click', (e) => handleDownload(e.target.closest('button').getAttribute('data-id')));
+    });
+
+    document.querySelectorAll('.source-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => handleViewSource(e.target.closest('button').getAttribute('data-id')));
+    });
+
+    document.querySelectorAll('.delete-job-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => handleDelete(e.target.closest('button').getAttribute('data-id')));
     });
 }
 
@@ -268,7 +314,6 @@ async function handleRetry(jobId) {
 
     try {
         await JobService.retryJob(jobId);
-        // Firestore listener will update UI automatically
     } catch (error) {
         console.error("Retry error:", error);
         alert("Failed to retry job: " + error.message);
@@ -279,52 +324,182 @@ async function handleRetry(jobId) {
     }
 }
 
+async function handleDelete(jobId) {
+    if (!confirm("Delete this job from history? This will also remove the associated PDF.")) return;
+
+    try {
+        await JobService.deleteJob(jobId);
+    } catch (error) {
+        alert("Failed to delete: " + error.message);
+    }
+}
+
+function handleViewSource(jobId) {
+    const job = allJobs.find(j => j.id === jobId);
+    if (!job || !job.tailoredLatex) return;
+
+    const modal = document.getElementById('latexModal');
+    const display = document.getElementById('latexDisplay');
+
+    display.value = job.tailoredLatex;
+    modal.classList.remove('hidden');
+}
+
+// Modal Listeners
+document.getElementById('closeModal').addEventListener('click', () => {
+    document.getElementById('latexModal').classList.add('hidden');
+});
+
+document.getElementById('copyLatexBtn').addEventListener('click', async () => {
+    const text = document.getElementById('latexDisplay').value;
+    const btn = document.getElementById('copyLatexBtn');
+
+    try {
+        await navigator.clipboard.writeText(text);
+        const originalText = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => btn.textContent = originalText, 2000);
+    } catch (err) {
+        alert("Failed to copy!");
+    }
+});
+
 // ============================================================================
 // PROFILE MANAGEMENT
 // ============================================================================
 
-async function loadProfile(uid) {
+// ============================================================================
+// PROFILE & TRACKS MANAGEMENT
+// ============================================================================
+
+async function loadProfileAndTracks(uid) {
     try {
         const profile = await JobService.getUserProfile(uid);
-        if (profile && profile.masterResume) {
-            masterResumeRaw.value = profile.masterResume;
+        const tracks = await JobService.getResumeTracks(uid);
+
+        allTracks = tracks;
+
+        // Migration logic: If old masterResume exists but no tracks, create a default track
+        if (allTracks.length === 0 && profile && profile.masterResume) {
+            console.log("Migrating legacy profile to tracks...");
+            const trackId = await JobService.addResumeTrack(uid, "Professional Default", profile.masterResume);
+            allTracks = [{ id: trackId, name: "Professional Default", latex: profile.masterResume }];
+        }
+
+        renderTracks();
+
+        if (allTracks.length > 0 && !currentTrackId) {
+            selectTrack(allTracks[0].id);
         }
     } catch (error) {
-        console.error("Failed to load profile:", error);
+        console.error("Failed to load profile/tracks:", error);
     }
 }
 
-saveProfileBtn.addEventListener('click', async () => {
+function renderTracks() {
+    trackList.innerHTML = '';
+
+    allTracks.forEach(track => {
+        const div = document.createElement('div');
+        div.className = `track-item ${track.id === currentTrackId ? 'active' : ''}`;
+        div.dataset.id = track.id;
+        div.innerHTML = `
+            <span>${track.name}</span>
+        `;
+        div.onclick = () => selectTrack(track.id);
+        trackList.appendChild(div);
+    });
+}
+
+function selectTrack(trackId) {
+    currentTrackId = trackId;
+    const track = allTracks.find(t => t.id === trackId);
+
+    if (track) {
+        currentTrackName.textContent = track.name;
+        masterResumeRaw.value = track.latex;
+        deleteTrackBtn.classList.remove('hidden');
+    } else {
+        currentTrackName.textContent = "Select a Track";
+        masterResumeRaw.value = "";
+        deleteTrackBtn.classList.add('hidden');
+    }
+
+    renderTracks();
+}
+
+addTrackBtn.addEventListener('click', async () => {
     if (!auth.currentUser) return;
+
+    const name = prompt("Enter a name for this resume track (e.g. 'Software Engineer', 'Data Science'):");
+    if (!name) return;
+
+    try {
+        const trackId = await JobService.addResumeTrack(auth.currentUser.uid, name, "");
+        allTracks.push({ id: trackId, name, latex: "" });
+        selectTrack(trackId);
+        showSaveStatus("Track created!", "success");
+    } catch (error) {
+        alert("Failed to create track: " + error.message);
+    }
+});
+
+deleteTrackBtn.addEventListener('click', async () => {
+    if (!currentTrackId || !auth.currentUser) return;
+    if (!confirm("Are you sure you want to delete this track? This cannot be undone.")) return;
+
+    try {
+        await JobService.deleteResumeTrack(auth.currentUser.uid, currentTrackId);
+        allTracks = allTracks.filter(t => t.id !== currentTrackId);
+        currentTrackId = null;
+        if (allTracks.length > 0) {
+            selectTrack(allTracks[0].id);
+        } else {
+            selectTrack(null);
+        }
+        showSaveStatus("Track deleted", "success");
+    } catch (error) {
+        alert("Failed to delete track: " + error.message);
+    }
+});
+
+saveProfileBtn.addEventListener('click', async () => {
+    if (!auth.currentUser || !currentTrackId) {
+        showSaveStatus("Select a track first.", "error");
+        return;
+    }
 
     const uid = auth.currentUser.uid;
     const latex = masterResumeRaw.value.trim();
-
-    if (!latex) {
-        showSaveStatus("Please enter your LaTeX resume code.", "error");
-        return;
-    }
 
     saveProfileBtn.disabled = true;
     saveProfileBtn.textContent = "Saving...";
     showSaveStatus("");
 
     try {
-        await JobService.updateUserProfile(uid, {
-            masterResume: latex,
-            email: auth.currentUser.email
+        await JobService.updateResumeTrack(uid, currentTrackId, {
+            latex: latex
         });
-        showSaveStatus("Profile saved successfully!", "success");
+
+        // Update local state
+        const track = allTracks.find(t => t.id === currentTrackId);
+        if (track) track.latex = latex;
+
+        showSaveStatus("Track saved successfully!", "success");
     } catch (error) {
         console.error("Save error:", error);
         showSaveStatus("Error saving: " + error.message, "error");
     } finally {
         saveProfileBtn.disabled = false;
-        saveProfileBtn.textContent = "Save Template";
+        saveProfileBtn.textContent = "Save Changes";
     }
 });
 
 function showSaveStatus(msg, type) {
     saveStatus.textContent = msg;
     saveStatus.className = "save-status " + (type || "");
+}
+
+if (goToProfileBtn) {
+    goToProfileBtn.addEventListener('click', () => switchTab('profile'));
 }

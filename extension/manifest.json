@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Resume AI Job Clipper",
-  "version": "1.0",
-  "description": "Scrape job descriptions and send to Resume AI.",
+  "name": "ResumeForge: AI Resume Tailor",
+  "version": "1.0.0",
+  "description": "Magically tailor your resume for any job description using AI. Boost your ATS score in seconds.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -24,7 +24,13 @@
     ]
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+    "sandbox": "sandbox-src 'self' https://www.google.com https://www.gstatic.com https://fb.com;"
+  },
+  "sandbox": {
+    "pages": [
+      "sandbox.html"
+    ]
   },
   "icons": {
     "16": "images/icon16.png",
